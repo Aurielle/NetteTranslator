@@ -25,14 +25,14 @@
  *
  */
 
-/*namespace Nette\Addons;*/
+namespace Nette;
 
 /**
  * Editable translator
  *
  * @author Jan Smitka <jan@smitka.org>
  */
-interface IEditableTranslator extends /*\Nette\*/ITranslator
+interface IEditableTranslator extends ITranslator
 {
 	public function getVariantsCount();
 	public function getStrings();

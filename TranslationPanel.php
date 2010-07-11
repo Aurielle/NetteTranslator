@@ -25,10 +25,10 @@
  *
  */
 
-/*namespace Nette\Addons;*/
+namespace Nette;
 
-/*use Nette\Environment;*/
-/*use Nette\Web\Html;*/
+use Nette\Environment;
+use Nette\Web\Html;
 
 /**
  * Panel for Nette DebugBar, which enables you to translate strings
@@ -36,14 +36,14 @@
  *
  * @author Jan Smitka <jan@smitka.org>
  */
-class TranslationPanel implements /*\Nette\*/IDebugPanel
+class TranslationPanel implements IDebugPanel
 {
 	/* Layout constants */
 	const LAYOUT_HORIZONTAL = 1;
 	const LAYOUT_VERTICAL = 2;
 
 
-	/** @var IEditableTranslator */
+	/** @var Nette\IEditableTranslator */
 	protected $translator;
 
 	/** @var int TranslationPanel layout */
@@ -60,7 +60,7 @@ class TranslationPanel implements /*\Nette\*/IDebugPanel
 
 		if ($height !== NULL) {
 			if (!is_numeric($height))
-				throw new /*\*/InvalidArgumentException('Panel height has to be a numeric value.');
+				throw new \InvalidArgumentException('Panel height has to be a numeric value.');
 			$this->height = $height;
 		}
 

@@ -42,17 +42,12 @@ class TranslationPanel implements IDebugPanel
 	const LAYOUT_HORIZONTAL = 1;
 	const LAYOUT_VERTICAL = 2;
 
-
 	/** @var Nette\IEditableTranslator */
 	protected $translator;
-
 	/** @var int TranslationPanel layout */
 	protected $layout = self::LAYOUT_HORIZONTAL;
-
 	/** @var int Height of the editor */
 	protected $height = 300;
-
-	
 
 	public function __construct(IEditableTranslator $translator, $layout = NULL, $height = NULL)
 	{
@@ -73,17 +68,14 @@ class TranslationPanel implements IDebugPanel
 		Environment::getApplication()->onRequest[] = callback($this, 'processRequest');
 	}
 
-	
-
 	/**
 	 * Return's panel ID.
 	 * @return string
 	 */
 	public function getId()
 	{
-		return 'TranslationPanel';
+		return 'translation-panel';
 	}
-
 
 	/**
 	 * Returns the code for the panel tab.
@@ -91,13 +83,10 @@ class TranslationPanel implements IDebugPanel
 	 */
 	public function getTab()
 	{
-		$tab = Html::el('span');
-		$image = $tab->create('img')->src($this->getIconSrc('flag_blue.png'))->id('TranslationPanel-icon');
-		$tab->add('Translations');
-		$tab->create('script')->type('text/javascript')->setHtml('translationPanel.init();');
-		return (string) $tab;
+		ob_start();
+		require __DIR__ . '/translation.tab.phtml';
+		return ob_get_clean();
 	}
-
 
 	/**
 	 * Returns the code for the panel itself.
@@ -125,10 +114,9 @@ class TranslationPanel implements IDebugPanel
 		}
 
 		ob_start();
-		require dirname(__FILE__) . '/TranslationPanel.panel.phtml';
+		require __DIR__ . '/translation.panel.phtml';
 		return ob_get_clean();
 	}
-
 
 	/**
 	 * Handles an incomuing request and saves the data if necessary.
@@ -162,20 +150,7 @@ class TranslationPanel implements IDebugPanel
 			}
 		}
 	}
-
-
-
-	/**
-	 * Returns an embedded PNG icon.
-	 * @param string $icon
-	 * @return string
-	 */
-	protected function getIconSrc($icon)
-	{
-		return 'data:image/png;base64,' . base64_encode(file_get_contents(dirname(__FILE__) . '/icons/' . $icon));
-	}
-
-
+	
 	/**
 	 * Return an odrdinal number suffix.
 	 * @param string $count

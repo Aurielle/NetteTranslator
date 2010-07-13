@@ -45,9 +45,9 @@ class Panel implements \Nette\IDebugPanel
 	/** @var Nette\IEditableTranslator */
 	protected $translator;
 	/** @var int TranslationPanel layout */
-	protected $layout = self::LAYOUT_HORIZONTAL;
+	protected $layout = self::LAYOUT_VERTICAL;
 	/** @var int Height of the editor */
-	protected $height = 300;
+	protected $height = 350;
 
 	public function __construct(IEditable $translator, $layout = NULL, $height = NULL)
 	{

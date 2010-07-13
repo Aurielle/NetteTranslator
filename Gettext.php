@@ -1,19 +1,47 @@
 <?php
+/*
+ * Copyright (c) 2009-2010 Roman Sklenář
+ *
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ *
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
 
-namespace Nette;
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ */
+namespace NetteTranslator;
+
+use Nette\Environment;
 
 /**
  * Gettext translator.
  * This solution is partitionaly based on Zend_Translate_Adapter_Gettext (c) Zend Technologies USA Inc. (http://www.zend.com), new BSD license
  *
  * @author     Roman Sklenář
+ * @author	   Miroslav Smetana
+ * @author	   Patrik Votoček <patrik@votocek.cz>
  * @copyright  Copyright (c) 2009 Roman Sklenář (http://romansklenar.cz)
  * @license    New BSD License
  * @example    http://addons.nettephp.com/gettext-translator
- * @package    Nette\Extras\GettextTranslator
- * @version    0.4
+ * @package    NetteTranslator\Gettext
+ * @version    0.5
  */
-class GettextTranslator extends Object implements IEditableTranslator
+class Gettext extends \Nette\Object implements IEditable
 {
 	/** @var string */
 	public $locale;
@@ -39,14 +67,12 @@ class GettextTranslator extends Object implements IEditableTranslator
 	public function __construct($filename, $locale = NULL)
 	{
 		$this->locale = $locale;
-		$this->buildDictionary($filename);
+		if (!empty($filename))
+			$this->buildDictionary($filename);
 		$this->filename = $filename;
-		$this->space = \Nette\Environment::getSession('Nette.Addons.GettextTranslator');
-		//$time = new DateTime();
-		if (!isset($this->space->untranslated)) {
-			//$this->space->time = $time;
+		$this->space = \Nette\Environment::getSession('NetteTranslator-Gettext');
+		if (!isset($this->space->untranslated))
 			$this->space->untranslated = array();
-		}
 	}
 
 	/**
@@ -191,15 +217,17 @@ class GettextTranslator extends Object implements IEditableTranslator
 
 	public function getVariantsCount()
 	{
-		$s = preg_replace('/([a-z]+)/', '$$1', "n=2;".$this->meta['Plural-Forms']);
-		eval($s);
+		if (isset($this->meta)) {
+			$s = preg_replace('/([a-z]+)/', '$$1', "n=2;".$this->meta['Plural-Forms']);
+			eval($s);
 
-		return $nplurals;
+			return $nplurals;
+		}
+		return 1;
 	}
 
 	public function getStrings()
 	{
-		//return $data;
 		$result = array();
 		foreach ($this->dictionary as $value) {
 			if (trim($value->message) != "") {
@@ -241,7 +269,7 @@ class GettextTranslator extends Object implements IEditableTranslator
 
 	private function getPoHeader()
 	{
-		$time = new DateTime();
+		$time = new \DateTime();
 		$header = '# Gettext keys exported by GettextTranslator and Translation Panel
 # Created: '.$time->format('Y-m-d H:i:s').'
 msgid ""
@@ -300,7 +328,7 @@ msgstr ""
 	 * Get translator
 	 *
 	 * @param array $options
-	 * @return Nette\GettextTranslator
+	 * @return NetteTranslator\Gettext
 	 */
 	public static function getTranslator($options)
 	{
@@ -315,10 +343,10 @@ msgstr ""
  * @copyright  Copyright (c) 2009 Roman Sklenář (http://romansklenar.cz)
  * @license    New BSD License
  * @example    http://addons.nettephp.com/gettext-translator
- * @package    Nette\Extras\GettextTranslator
- * @version    0.4
+ * @package    NetteTranslator\Gettext
+ * @version    0.5
  */
-class Word extends Object
+class Word extends \Nette\Object
 {
 	/** @var string|array */
 	protected $message;

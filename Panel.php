@@ -25,18 +25,18 @@
  *
  */
 
-namespace Nette;
+namespace NetteTranslator;
 
 use Nette\Environment;
-use Nette\Web\Html;
 
 /**
  * Panel for Nette DebugBar, which enables you to translate strings
  * directly from your browser.
  *
  * @author Jan Smitka <jan@smitka.org>
+ * @author Patrik Votoček <patrik@votocek.cz>
  */
-class TranslationPanel implements IDebugPanel
+class Panel implements \Nette\IDebugPanel
 {
 	/* Layout constants */
 	const LAYOUT_HORIZONTAL = 1;
@@ -49,7 +49,7 @@ class TranslationPanel implements IDebugPanel
 	/** @var int Height of the editor */
 	protected $height = 300;
 
-	public function __construct(IEditableTranslator $translator, $layout = NULL, $height = NULL)
+	public function __construct(IEditable $translator, $layout = NULL, $height = NULL)
 	{
 		$this->translator = $translator;
 
@@ -66,6 +66,7 @@ class TranslationPanel implements IDebugPanel
 		}
 
 		Environment::getApplication()->onRequest[] = callback($this, 'processRequest');
+		//$this->processRequest();
 	}
 
 	/**
@@ -84,7 +85,7 @@ class TranslationPanel implements IDebugPanel
 	public function getTab()
 	{
 		ob_start();
-		require __DIR__ . '/translation.tab.phtml';
+		require __DIR__ . '/tab.phtml';
 		return ob_get_clean();
 	}
 
@@ -98,7 +99,7 @@ class TranslationPanel implements IDebugPanel
 		$strings = $this->translator->getStrings();
 
 		if (Environment::getSession()->isStarted()) {
-			$session = Environment::getSession('Nette.Addons.TranslationPanel');
+			$session = Environment::getSession('NetteTranslator-Panel');
 			$untranslatedStack = isset($session['stack']) ? $session['stack'] : array();
 			foreach ($strings as $string => $data) {
 				if (!$data) {
@@ -114,7 +115,7 @@ class TranslationPanel implements IDebugPanel
 		}
 
 		ob_start();
-		require __DIR__ . '/translation.panel.phtml';
+		require __DIR__ . '/panel.phtml';
 		return ob_get_clean();
 	}
 
@@ -125,7 +126,7 @@ class TranslationPanel implements IDebugPanel
 	{
 		// Try starting the session
 		try {
-			$session = Environment::getSession('Nette.Addons.TranslationPanel');
+			$session = Environment::getSession('NetteTranslator-Panel');
 		} catch (InvalidStateException $e) {
 			$session = FALSE;
 		}

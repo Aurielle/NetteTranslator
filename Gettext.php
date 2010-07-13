@@ -26,6 +26,8 @@
  */
 namespace NetteTranslator;
 
+require_once __DIR__ . "/shortcuts.php";
+
 use Nette\Environment,
 	Nette\String;
 

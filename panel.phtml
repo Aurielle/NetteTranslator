@@ -442,6 +442,11 @@ var translationPanel = {
 					translationPanel.drawList();
 				} else {
 					translationPanel.setStatus('Unexpected error.');
+					var win = window.open('', 'Error');
+					win.document.write(xmlHttp.responseText);
+					translationPanel.updatedStrings = [];
+					translationPanel.currentString = false;
+					translationPanel.drawList();
 				}
 			}
 		}

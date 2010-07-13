@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (c) 2009-2010 Roman Sklenář
+ * Copyright (c) 2010 Patrik Votoček <patrik@votocek.cz>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -26,7 +26,8 @@
  */
 namespace NetteTranslator;
 
-use Nette\Environment;
+use Nette\Environment,
+	Nette\String;
 
 /**
  * Gettext translator.
@@ -43,75 +44,183 @@ use Nette\Environment;
  */
 class Gettext extends \Nette\Object implements IEditable
 {
+	const SESSION_NAMESPACE = "NetteTranslator-Gettext";
+	/** @var array */
+	protected $dirs = array();
 	/** @var string */
-	public $locale;
-	/** @var bool */
-	private $endian = FALSE;
-	/** @var string|stream  MO gettext file */
-	protected $file = FALSE;
-	/** @var array  translation table */
+	protected $lang = "en";
+	/** @var array */
+	private $metadata;
+	/** @var array<string|array> */
 	protected $dictionary = array();
-	/** @var array */
-	protected $meta;
-	/** @var array */
-	protected $space;
-	/** @var string */
-	protected $filename;
+	/** @var bool */
+	private $loaded = FALSE;
+
 
 	/**
-	 * Translator contructor.
-	 * @param string
-	 * @param string
-	 * @return void
+	 * Constructor
+	 *
+	 * @param array $dirs
+	 * @param string $lang
 	 */
-	public function __construct($filename, $locale = NULL)
+	public function __construct(array $dirs = NULL, $lang = NULL)
 	{
-		$this->locale = $locale;
-		if (!empty($filename))
-			$this->buildDictionary($filename);
-		$this->filename = $filename;
-		$this->space = \Nette\Environment::getSession('NetteTranslator-Gettext');
-		if (!isset($this->space->untranslated))
-			$this->space->untranslated = array();
+		if (count($dirs) > 0)
+			$this->dirs = $dirs;
+		if (empty($dirs)) {
+			$dir = Environment::getVariable('langDir');
+			if (empty($dir))
+				throw new \InvalidStateException("Languages dir must be defined");
+			$this->dirs[] = $dir;
+		}
+
+		$this->lang = $lang;
+		if (empty($lang))
+			$this->lang = Environment::getVariable('lang');
+		if (empty($this->lang))
+			throw new \InvalidStateException("Languages must be defined");
+	}
+
+	/**
+	 * Load data
+	 */
+	protected function loadDictonary()
+	{
+		if (!$this->loaded) {
+			foreach ($this->dirs as $dir) {
+				$this->parseFile($dir."/".$this->lang.".mo");
+			}
+			$this->loaded = TRUE;
+		}
+	}
+
+	/**
+	 * Parse dictionary file
+	 *
+	 * @param string $file file path
+	 */
+	protected function parseFile($file)
+	{
+		if (file_exists($file)) {
+			$f = @fopen($file, 'rb');
+			if (@filesize($file) < 10)
+				\InvalidArgumentException("'$file' is not a gettext file.");
+
+			$endian = FALSE;
+			$read = function($bytes) use ($f, $endian)
+			{
+				$data = fread($f, 4 * $bytes);
+				return $endian === FALSE ? unpack('V'.$bytes, $data) : unpack('N'.$bytes, $data);
+			};
+
+			$input = $read(1);
+			if (String::lower(substr(dechex($input[1]), -8)) == "950412de")
+				$endian = FALSE;
+			elseif (String::lower(substr(dechex($input[1]), -8)) == "de120495")
+				$endian = TRUE;
+			else
+				throw new \InvalidArgumentException("'$file' is not a gettext file.");
+
+			$input = $read(1);
+
+			$input = $read(1);
+			$total = $input[1];
+
+			$input = $read(1);
+			$originalOffset = $input[1];
+
+			$input = $read(1);
+			$translationOffset = $input[1];
+
+			fseek($f, $originalOffset);
+			$orignalTmp = $read(2 * $total);
+			fseek($f, $translationOffset);
+			$translationTmp = $read(2 * $total);
+
+			for ($i = 0; $i < $total; ++$i) {
+				if ($orignalTmp[$i * 2 + 1] != 0) {
+					fseek($f, $orignalTmp[$i * 2 + 2]);
+					$original = @fread($f, $orignalTmp[$i * 2 + 1]);
+				} else
+					$original = "";
+
+				if ($translationTmp[$i * 2 + 1] != 0) {
+					fseek($f, $translationTmp[$i * 2 + 2]);
+					$translation = fread($f, $translationTmp[$i * 2 + 1]);
+					if ($original === "") {
+						$this->parseMetadata($translation);
+						continue;
+					}
+
+					$original = explode(String::chr(0x00), $original);
+					$translation = explode(String::chr(0x00), $translation);
+					$this->dictionary[is_array($original) ? $original[0] : $original]['original'] = $original;
+					$this->dictionary[is_array($original) ? $original[0] : $original]['translation'] = $translation;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Metadata parser
+	 *
+	 * @param string $input
+	 */
+	private function parseMetadata($input)
+	{
+		$input = trim($input);
+
+		$input = preg_split('/[\n,]+/', $input);
+		foreach ($input as $metadata) {
+			$pattern = ': ';
+			$tmp = preg_split("($pattern)", $metadata);
+			$this->metadata[trim($tmp[0])] = count($tmp) > 2 ? ltrim(strstr($metadata, $pattern), $pattern) : $tmp[1];
+		}
 	}
 
 	/**
 	 * Translates the given string.
-	 * @param  string	translation string
-	 * @param  int		count (positive number)
+	 *
+	 * @param string $message
+	 * @param int $form plural form (positive number)
 	 * @return string
 	 */
-	public function translate($message, $count = 1)
+	public function translate($message, $form = 1)
 	{
+		$this->loadDictonary();
+		
 		$message = (string) $message;
-		if (!empty($message) && isset($this->dictionary[$message])) {
-			$word = $this->dictionary[$message];
-			if ($count === NULL)
-				$count = 1;
-			if (is_array($count)) {
-				$tcount = 1;
-				foreach ($count as $value) {
-					if (is_int($value)) {
-						$tcount = $value;
-					}
+		if (is_array($form) && $form !== NULL) {
+			foreach ($form as $value) {
+				if (is_int($value)) {
+					$form = $value;
 				}
-				$count = $tcount;
 			}
-			if (!is_int($count)) {
-				$count = 1;
-			}
-			$s = preg_replace('/([a-z]+)/', '$$1', "n=$count;".$this->meta['Plural-Forms']);
-			eval($s);
-			$message = $word->translate($plural);
+		}
+		if (!is_int($form) || $form === NULL) {
+			$form = 1;
+		}
+
+		if (!empty($message) && isset($this->dictionary[$message])) {
+			$tmp = preg_replace('/([a-z]+)/', '$$1', "n=$form;".$this->metadata['Plural-Forms']);
+			eval($tmp);
+
+			$message = $this->dictionary[$message]['translation'];
+			if (!empty($message))
+				$message = (is_array($message) && $plural !== NULL && isset($message[$plural])) ? $message[$plural] : $message;
 		} else {
-			$this->space->untranslated[] = $message;
+			$space = Environment::getSession(self::SESSION_NAMESPACE);
+			if (!isset($space->newStrings))
+				$space->newStrings = array();
+			if (!in_array($message, $space->newStrings))
+				$space->newStrings[] = $message;
 		}
 
 		$args = func_get_args();
 		if (count($args) > 1) {
 			array_shift($args);
-			$tempargs = $args;
-			if (is_array(array_pop($tempargs))) {
+			$tmp = $args;
+			if (is_array(array_pop($tmp))) {
 				$args = array_pop($args);
 			}
 			$message = vsprintf($message, $args);
@@ -120,208 +229,202 @@ class Gettext extends \Nette\Object implements IEditable
 	}
 
 	/**
-	 * Load translation data (MO file reader) and builds the dictionary.
-	 * @param  string  $filename  MO file to add, full path must be given for access
-	 * @throws InvalidArgumentException
-	 * @return void
+	 * Get count of plural forms
+	 *
+	 * @return int
 	 */
-	private function buildDictionary($filename)
-	{
-		$this->endian = FALSE;
-		$this->file = @fopen($filename, 'rb');
-		if (!$this->file) {
-			throw new \InvalidArgumentException("Error opening translation file '$filename'.");
-		}
-		if (@filesize($filename) < 10) {
-			\InvalidArgumentException("'$filename' is not a gettext file.");
-		}
-
-		// get endian
-		$input = $this->readMoData(1);
-		if (strtolower(substr(dechex($input[1]), -8)) == "950412de") {
-			$this->endian = FALSE;
-		} else if (strtolower(substr(dechex($input[1]), -8)) == "de120495") {
-			$this->endian = TRUE;
-		} else {
-			\InvalidArgumentException("'$filename' is not a gettext file.");
-		}
-		// read revision - not supported for now
-		$input = $this->readMoData(1);
-
-		// number of bytes
-		$input = $this->readMoData(1);
-		$total = $input[1];
-
-		// number of original strings
-		$input = $this->readMoData(1);
-		$originalOffset = $input[1];
-
-		// number of translation strings
-		$input = $this->readMoData(1);
-		$translationOffset = $input[1];
-
-		// fill the original table
-		fseek($this->file, $originalOffset);
-		$origtemp = $this->readMoData(2 * $total);
-		fseek($this->file, $translationOffset);
-		$transtemp = $this->readMoData(2 * $total);
-
-		for ($count = 0; $count < $total; ++$count) {
-			if ($origtemp[$count * 2 + 1] != 0) {
-				fseek($this->file, $origtemp[$count * 2 + 2]);
-				$original = @fread($this->file, $origtemp[$count * 2 + 1]);
-			} else {
-				$original = '';
-			}
-
-			if ($transtemp[$count * 2 + 1] != 0) {
-				fseek($this->file, $transtemp[$count * 2 + 2]);
-				$tr = fread($this->file, $transtemp[$count * 2 + 1]);
-				if ($original === '') {
-					$this->generateMeta($tr);
-					continue;
-				}
-
-				$word = new Word(explode(\Nette\String::chr(0x00), $original), explode(\Nette\String::chr(0x00), $tr));
-				$this->dictionary[$word->message] = $word;
-			}
-		}
-		return $this->dictionary;
-	}
-
-	/**
-	 * Read values from the MO file.
-	 * @param  string
-	 */
-	private function readMoData($bytes)
-	{
-		$data = fread($this->file, 4 * $bytes);
-		return $this->endian === FALSE ? unpack('V'.$bytes, $data) : unpack('N'.$bytes, $data);
-	}
-
-	/**
-	 * Generates meta information about distionary.
-	 * @return void
-	 */
-	private function generateMeta($s)
-	{
-		$s = trim($s);
-
-		$s = preg_split('/[\n,]+/', $s);
-		foreach ($s as $meta) {
-			$pattern = ': ';
-			$tmp = preg_split("($pattern)", $meta);
-			$this->meta[trim($tmp[0])] = count($tmp) > 2 ? ltrim(strstr($meta, $pattern), $pattern) : $tmp[1];
-		}
-	}
-
 	public function getVariantsCount()
 	{
-		if (isset($this->meta)) {
-			$s = preg_replace('/([a-z]+)/', '$$1', "n=2;".$this->meta['Plural-Forms']);
-			eval($s);
+		$this->loadDictonary();
 
-			return $nplurals;
+		if (isset($this->metadata['Plural-Forms'])) {
+			return (int)substr($this->metadata['Plural-Forms'], 9, 1);
 		}
 		return 1;
 	}
 
+	/**
+	 * Get translations strings
+	 *
+	 * @return array
+	 */
 	public function getStrings()
 	{
+		$this->loadDictonary();
+
 		$result = array();
-		foreach ($this->dictionary as $value) {
-			if (trim($value->message) != "") {
-				$result[$value->message] = $value->getTranslation(NULL);
+		foreach ($this->dictionary as $original => $data) {
+			if (trim($original) != "") {
+				$result[$original] = $data['translation'];
 			}
 		}
 
-		foreach ($this->space->untranslated as $value) {
-			if (trim($value) != "" && !isset($result[$value])) {
-				$result[$value] = false;
-			}
-		}
-
-
-		return $result;
-	}
-
-	public function setTranslation($message, $string)
-	{
-		$word = new Word($message, $string);
-		$this->dictionary[$word->message] = $word;
-	}
-
-	public function save()
-	{
-		$filename = explode('/', $this->filename);
-		$filename = $filename[count($filename) - 1];
-
-		$newPoFilename = str_replace($filename, '', $this->filename).'TPanel.po';
-		//$this->gettext_gen_mo($newFilename, $this->getStrings());
-		$fp = fopen($newPoFilename, 'w');
-		fwrite($fp, $this->getPoHeader());
-		fwrite($fp, $this->getPoStrings());
-		fwrite($fp, $dump);
-		fclose($fp);
-		echo exec('msgfmt -o '.$this->filename.' '.$newPoFilename);
-		$this->space->untranslated = array();
-	}
-
-	private function getPoHeader()
-	{
-		$time = new \DateTime();
-		$header = '# Gettext keys exported by GettextTranslator and Translation Panel
-# Created: '.$time->format('Y-m-d H:i:s').'
-msgid ""
-msgstr ""
-"Project-Id-Version: \n"
-"POT-Creation-Date: \n"
-"PO-Revision-Date: \n"
-"Last-Translator: TranslationPanel\n"
-"Language-Team: \n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: '.$this->meta['Plural-Forms'].'\n"
-"X-Poedit-SourceCharset: utf-8\n"
-
-';
-
-		return $header;
-	}
-
-	private function getPoStrings()
-	{
-		$result = '';
-		$strings = $this->getStrings();
-		foreach ($strings as $key => $value) {
-			$result .= 'msgid "'.$key.'"
-';
-			if (!is_array($value)) {
-				$result .= 'msgstr "'.$value.'"
-
-';
-			} else {
-				if (count($value) == 1) {
-					$result .= 'msgstr "'.$value[0].'"
-
-';
-				} else {
-					$counter = 0;
-					$result .= 'msgid_plural "'.$key.'"
-';
-					foreach ($value as $val) {
-						$result .= 'msgstr['.$counter.'] "'.$val.'"
-';
-						$counter++;
-					}
-					$result .= '
-';
+		$storage = Environment::getSession(self::SESSION_NAMESPACE);
+		if (isset($storage->newStrings)) {
+			foreach ($storage->newStrings as $original) {
+				if (trim($original) != "") {
+					$result[$original] = FALSE;
 				}
 			}
 		}
 
 		return $result;
+	}
+
+	/**
+	 * Set translation string(s)
+	 *
+	 * @param string|array $message original string(s)
+	 * @param string|array $string translation string(s)
+	 */
+	public function setTranslation($message, $string)
+	{
+		$this->loadDictonary();
+
+		$this->dictionary[is_array($message) ? $message[0] : $message]['original'] = (array) $message;
+		$this->dictionary[is_array($message) ? $message[0] : $message]['translation'] = (array) $string;
+
+		$storage = Environment::getSession(self::SESSION_NAMESPACE);
+		unset($storage['newStrings'][array_search(is_array($message) ? $message[0] : $message, $storage['newStrings'])]);
+	}
+
+	/**
+	 * Save dictionary
+	 */
+	public function save()
+	{
+		$this->loadDictonary();
+
+		$this->buildPOFile($this->dirs[0]."/".$this->lang.".po");
+		$this->buildMOFile($this->dirs[0]."/".$this->lang.".mo");
+	}
+
+	/**
+	 * Generate gettext metadata array
+	 *
+	 * @return array
+	 */
+	private function generateMetadata()
+	{
+		$result = array();
+		if (isset($this->metadata['Project-Id-Version']))
+			$result[] = "Project-Id-Version: ".$this->metadata['Project-Id-Version'];
+		else
+			$result[] = "Project-Id-Version: ";
+		if (isset($this->metadata['Report-Msgid-Bugs-To']))
+			$result[] = "Report-Msgid-Bugs-To: ".$this->metadata['Report-Msgid-Bugs-To'];
+		if (isset($this->metadata['POT-Creation-Date']))
+			$result[] = "POT-Creation-Date: ".$this->metadata['POT-Creation-Date'];
+		else
+			$result[] = "POT-Creation-Date: ";
+		$result[] = "PO-Revision-Date: ".date("Y-m-d H:iO");
+		if (isset($this->metadata['Last-Translator']))
+			$result[] = "Language-Team: ".$this->metadata['Language-Team'];
+		else
+			$result[] = "Language-Team: ";
+		if (isset($this->metadata['MIME-Version']))
+			$result[] = "MIME-Version: ".$this->metadata['MIME-Version'];
+		else
+			$result[] = "MIME-Version: 1.0";
+		if (isset($this->metadata['Content-Type']))
+			$result[] = "Content-Type: ".$this->metadata['Content-Type'];
+		else
+			$result[] = "Content-Type: text/plain; charset=UTF-8";
+		if (isset($this->metadata['Content-Transfer-Encoding']))
+			$result[] = "Content-Transfer-Encoding: ".$this->metadata['Content-Transfer-Encoding'];
+		else
+			$result[] = "Content-Transfer-Encoding: 8bit";
+		if (isset($this->metadata['Plural-Forms']))
+			$result[] = "Plural-Forms: ".$this->metadata['Plural-Forms'];
+		else
+			$result[] = "Plural-Forms: ";
+		if (isset($this->metadata['X-Poedit-Language']))
+			$result[] = "X-Poedit-Language: ".$this->metadata['X-Poedit-Language'];
+		if (isset($this->metadata['X-Poedit-Country']))
+			$result[] = "X-Poedit-Country: ".$this->metadata['X-Poedit-Country'];
+		if (isset($this->metadata['X-Poedit-SourceCharset']))
+			$result[] = "X-Poedit-SourceCharset: ".$this->metadata['X-Poedit-SourceCharset'];
+		if (isset($this->metadata['X-Poedit-KeywordsList']))
+			$result[] = "X-Poedit-KeywordsList: ".$this->metadata['X-Poedit-KeywordsList'];
+
+		return $result;
+	}
+
+	/**
+	 * Build gettext MO file
+	 *
+	 * @param string $file
+	 */
+	private function buildPOFile($file)
+	{
+		$po = "# Gettext keys exported by GettextTranslator and Translation Panel\n"
+			."# Created: ".date('Y-m-d H:i:s')."\n".'msgid ""'."\n".'msgstr ""'."\n";
+		$po .= '"'.implode('\n"'."\n".'"', $this->generateMetadata()).'\n"'."\n\n\n";
+		$strings = $this->getStrings();
+		foreach ($strings as $key => $value) {
+			$po .= 'msgid "'.$key.'"'."\n";
+			if (!is_array($value)) {
+				$po .= 'msgstr "'.$value.'"'."\n\n";
+			} else {
+				if (count($value) == 1) {
+					$po .= 'msgstr "'.$value[0].'"'."\n\n";
+				} else {
+					$i = 0;
+					$po .= 'msgid_plural "'.$key.'"'."\n";
+					foreach ($value as $val) {
+						$po .= 'msgstr['.$i.'] "'.$val.'"'."\n";
+						$i++;
+					}
+					$po .= "\n";
+				}
+			}
+		}
+
+		file_put_contents($file, $po);
+	}
+
+	/**
+	 * Build gettext MO file
+	 *
+	 * @param string $file
+	 */
+	private function buildMOFile($file)
+	{
+		ksort($this->dictionary);
+
+		$metadata = implode("\n", $this->generateMetadata());
+		$items = count($this->dictionary) + 1;
+		$ids = String::chr(0x00);
+		$strings = $metadata.String::chr(0x00);
+		$idsOffsets = array(0, 28 + $items * 16);
+		$stringsOffsets = array(array(0, strlen($metadata)));
+
+		foreach ($this->dictionary as $key => $value) {
+			$id = $key;
+			if (is_array($value['original']) && count($value['original']) > 1)
+				$id .= String::chr(0x00).end($value['original']);
+
+			$string = implode(String::chr(0x00), $value['translation']);
+			$idsOffsets[] = strlen($id);
+			$idsOffsets[] = strlen($ids) + 28 + $items * 16;
+			$stringsOffsets[] = array(strlen($strings), strlen($string));
+			$ids .= $id.String::chr(0x00);
+			$strings .= $string.String::chr(0x00);
+		}
+
+		$valuesOffsets = array();
+		foreach ($stringsOffsets as $offset) {
+			list ($all, $one) = $offset;
+			$valuesOffsets[] = $one;
+			$valuesOffsets[] = $all + strlen($ids) + 28 + $items * 16;
+		}
+		$offsets= array_merge($idsOffsets, $valuesOffsets);
+
+		$mo = pack('Iiiiiii', 0x950412de, 0, $items, 28, 28 + $items * 8, 0, 28 + $items * 16);
+		foreach ($offsets as $offset)
+			$mo .= pack('i', $offset);
+
+		file_put_contents($file, $mo.$ids.$strings);
 	}
 
 	/**
@@ -332,64 +435,6 @@ msgstr ""
 	 */
 	public static function getTranslator($options)
 	{
-		return new static(isset($options['file']) ? $options['file'] : NULL, \Nette\Environment::getVariable('lang', 'en'));
-	}
-}
-
-/**
- * Class that represents translatable word.
- * 
- * @author     Roman Sklenář
- * @copyright  Copyright (c) 2009 Roman Sklenář (http://romansklenar.cz)
- * @license    New BSD License
- * @example    http://addons.nettephp.com/gettext-translator
- * @package    NetteTranslator\Gettext
- * @version    0.5
- */
-class Word extends \Nette\Object
-{
-	/** @var string|array */
-	protected $message;
-	/** @var string|array */
-	protected $translation;
-
-	/**
-	 * Word constructor.
-	 * @param string|array
-	 * @param string|array
-	 * @return void
-	 */
-	public function __construct($message, $translation)
-	{
-		$this->message = $message;
-		$this->translation = $translation;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getTranslation($form = 0)
-	{
-		return (is_array($this->translation) && $form !== NULL) ? $this->translation[$form] : $this->translation;
-	}
-
-	/**
-	 * @return string
-	 */
-	public function getMessage($form = 0)
-	{
-		return is_array($this->message) ? $this->message[$form] : $this->message;
-	}
-
-	/**
-	 * Translates a word.
-	 * @param  string  translation string
-	 * @param  int     form of translation
-	 * @return string
-	 */
-	public function translate($form = 0)
-	{
-		$msg = $this->getTranslation($form);
-		return!empty($msg) ? $msg : $this->getMessage($form);
+		return new static(isset($options['dir']) ? (array) $options['dir'] : NULL, Environment::getVariable('lang', 'en'));
 	}
 }

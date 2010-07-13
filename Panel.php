@@ -38,6 +38,8 @@ use Nette\Environment;
  */
 class Panel implements \Nette\IDebugPanel
 {
+	const XHR_HEADER = "X-Translation-Client";
+	const SESSION_NAMESPACE = "NetteTranslator-Panel";
 	/* Layout constants */
 	const LAYOUT_HORIZONTAL = 1;
 	const LAYOUT_VERTICAL = 2;
@@ -65,8 +67,7 @@ class Panel implements \Nette\IDebugPanel
 				$this->height = 500;
 		}
 
-		Environment::getApplication()->onRequest[] = callback($this, 'processRequest');
-		//$this->processRequest();
+		$this->processRequest();
 	}
 
 	/**
@@ -99,7 +100,7 @@ class Panel implements \Nette\IDebugPanel
 		$strings = $this->translator->getStrings();
 
 		if (Environment::getSession()->isStarted()) {
-			$session = Environment::getSession('NetteTranslator-Panel');
+			$session = Environment::getSession(self::SESSION_NAMESPACE);
 			$untranslatedStack = isset($session['stack']) ? $session['stack'] : array();
 			foreach ($strings as $string => $data) {
 				if (!$data) {
@@ -122,17 +123,17 @@ class Panel implements \Nette\IDebugPanel
 	/**
 	 * Handles an incomuing request and saves the data if necessary.
 	 */
-	public function processRequest()
+	private function processRequest()
 	{
 		// Try starting the session
 		try {
-			$session = Environment::getSession('NetteTranslator-Panel');
-		} catch (InvalidStateException $e) {
+			$session = Environment::getSession(self::SESSION_NAMESPACE);
+		} catch (\InvalidStateException $e) {
 			$session = FALSE;
 		}
 
 		$request = Environment::getHttpRequest();
-		if ($request->isPost() && $request->isAjax() && $request->getHeader('X-Translation-Client')) {
+		if ($request->isPost() && $request->isAjax() && $request->getHeader(self::XHR_HEADER)) {
 			$data = json_decode(file_get_contents('php://input'));
 			if ($data) {
 				if ($session) {
@@ -149,6 +150,7 @@ class Panel implements \Nette\IDebugPanel
 				if ($session)
 					$session['stack'] = $stack;
 			}
+			exit;
 		}
 	}
 	
@@ -169,5 +171,19 @@ class Panel implements \Nette\IDebugPanel
 			default:
 				return 'th';
 		}
+	}
+
+	/**
+	 * Register this panel
+	 *
+	 * @param NetteTranslator\IEditable $translator
+	 * @param int $layout
+	 * @param int $height
+	 */
+	public static function register(IEditable $translator = NULL, $layout = NULL, $height = NULL)
+	{
+		if (empty($translator))
+			$translator = Environment::getService('Nette\ITranslator');
+		\Nette\Debug::addPanel(new static($translator, $layout, $height));
 	}
 }

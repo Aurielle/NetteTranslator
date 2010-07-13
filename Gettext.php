@@ -253,18 +253,19 @@ class Gettext extends \Nette\Object implements IEditable
 		$this->loadDictonary();
 
 		$result = array();
-		foreach ($this->dictionary as $original => $data) {
-			if (trim($original) != "") {
-				$result[$original] = $data['translation'];
-			}
-		}
-
+		
 		$storage = Environment::getSession(self::SESSION_NAMESPACE);
 		if (isset($storage->newStrings)) {
 			foreach ($storage->newStrings as $original) {
 				if (trim($original) != "") {
 					$result[$original] = FALSE;
 				}
+			}
+		}
+
+		foreach ($this->dictionary as $original => $data) {
+			if (trim($original) != "") {
+				$result[$original] = $data['translation'];
 			}
 		}
 
@@ -283,9 +284,6 @@ class Gettext extends \Nette\Object implements IEditable
 
 		$this->dictionary[is_array($message) ? $message[0] : $message]['original'] = (array) $message;
 		$this->dictionary[is_array($message) ? $message[0] : $message]['translation'] = (array) $string;
-
-		$storage = Environment::getSession(self::SESSION_NAMESPACE);
-		unset($storage['newStrings'][array_search(is_array($message) ? $message[0] : $message, $storage['newStrings'])]);
 	}
 
 	/**
@@ -297,6 +295,11 @@ class Gettext extends \Nette\Object implements IEditable
 
 		$this->buildPOFile($this->dirs[0]."/".$this->lang.".po");
 		$this->buildMOFile($this->dirs[0]."/".$this->lang.".mo");
+
+		$storage = Environment::getSession(self::SESSION_NAMESPACE);
+		if (isset($storage->newStrings)) {
+			unset($storage->newStrings);
+		}
 	}
 
 	/**

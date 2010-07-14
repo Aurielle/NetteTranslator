@@ -192,12 +192,10 @@ class Gettext extends \Nette\Object implements IEditable
 		$this->loadDictonary();
 		
 		$message = (string) $message;
+		$message_plural = NULL;
 		if (is_array($form) && $form !== NULL) {
-			foreach ($form as $value) {
-				if (is_int($value)) {
-					$form = $value;
-				}
-			}
+			$message_plural = current($form);
+			$form = end($form);
 		}
 		if (!is_int($form) || $form === NULL) {
 			$form = 1;
@@ -207,6 +205,7 @@ class Gettext extends \Nette\Object implements IEditable
 			$tmp = preg_replace('/([a-z]+)/', '$$1', "n=$form;".$this->metadata['Plural-Forms']);
 			eval($tmp);
 
+			
 			$message = $this->dictionary[$message]['translation'];
 			if (!empty($message))
 				$message = (is_array($message) && $plural !== NULL && isset($message[$plural])) ? $message[$plural] : $message;
@@ -214,12 +213,13 @@ class Gettext extends \Nette\Object implements IEditable
 			$space = Environment::getSession(self::SESSION_NAMESPACE);
 			if (!isset($space->newStrings))
 				$space->newStrings = array();
-			if (!in_array($message, $space->newStrings))
-				$space->newStrings[] = $message;
+			$space->newStrings[$message] = empty($message_plural) ? array($message) : array($message, $message_plural);
+			if ($form > 1 && !empty($message_plural))
+				$message = $message_plural;
 		}
 
 		$args = func_get_args();
-		if (count($args) > 1) {
+		if (count($args) > 2) {
 			array_shift($args);
 			$tmp = $args;
 			if (is_array(array_pop($tmp))) {
@@ -258,7 +258,7 @@ class Gettext extends \Nette\Object implements IEditable
 		
 		$storage = Environment::getSession(self::SESSION_NAMESPACE);
 		if (isset($storage->newStrings)) {
-			foreach ($storage->newStrings as $original) {
+			foreach (array_keys($storage->newStrings) as $original) {
 				if (trim($original) != "") {
 					$result[$original] = FALSE;
 				}
@@ -284,6 +284,10 @@ class Gettext extends \Nette\Object implements IEditable
 	{
 		$this->loadDictonary();
 
+		$space = Environment::getSession(self::SESSION_NAMESPACE);
+		if (isset($space->newStrings) && array_key_exists($message, $space->newStrings))
+			$message = $space->newStrings[$message];
+		
 		$this->dictionary[is_array($message) ? $message[0] : $message]['original'] = (array) $message;
 		$this->dictionary[is_array($message) ? $message[0] : $message]['translation'] = (array) $string;
 	}
@@ -295,13 +299,13 @@ class Gettext extends \Nette\Object implements IEditable
 	{
 		$this->loadDictonary();
 
-		$this->buildPOFile($this->dirs[0]."/".$this->lang.".po");
 		$this->buildMOFile($this->dirs[0]."/".$this->lang.".mo");
+		$this->buildPOFile($this->dirs[0]."/".$this->lang.".po");
 
-		$storage = Environment::getSession(self::SESSION_NAMESPACE);
+		/*$storage = Environment::getSession(self::SESSION_NAMESPACE);
 		if (isset($storage->newStrings)) {
 			unset($storage->newStrings);
-		}
+		}*/
 	}
 
 	/**
@@ -365,21 +369,31 @@ class Gettext extends \Nette\Object implements IEditable
 		$po = "# Gettext keys exported by GettextTranslator and Translation Panel\n"
 			."# Created: ".date('Y-m-d H:i:s')."\n".'msgid ""'."\n".'msgstr ""'."\n";
 		$po .= '"'.implode('\n"'."\n".'"', $this->generateMetadata()).'\n"'."\n\n\n";
-		$strings = $this->getStrings();
-		foreach ($strings as $key => $value) {
-			$po .= 'msgid "'.$key.'"'."\n";
-			if (!is_array($value)) {
-				$po .= 'msgstr "'.$value.'"'."\n\n";
-			} else {
-				if (count($value) == 1) {
-					$po .= 'msgstr "'.$value[0].'"'."\n\n";
-				} else {
-					$i = 0;
-					$po .= 'msgid_plural "'.$key.'"'."\n";
-					foreach ($value as $val) {
-						$po .= 'msgstr['.$i.'] "'.$val.'"'."\n";
-						$i++;
-					}
+		foreach ($this->dictionary as $message => $data) {
+			$po .= 'msgid "'.$message.'"'."\n";
+			if (is_array($data['original']) && count($data['original']) > 1)
+				$po .= 'msgid_plural "'.end($data['original']).'"'."\n";
+			if (!is_array($data['translation']))
+				$po .= 'msgstr "'.$data['translation'].'"'."\n";
+			elseif (count($data['translation']) < 2)
+				$po .= 'msgstr "'.current($data['translation']).'"'."\n";
+			else {
+				$i = 0;
+				foreach ($data['translation'] as $string) {
+					$po .= 'msgstr['.$i.'] "'.$string.'"'."\n";
+					$i++;
+				}
+			}
+			$po .= "\n";
+		}
+
+		$storage = Environment::getSession(self::SESSION_NAMESPACE);
+		if (isset($storage->newStrings)) {
+			foreach ($storage->newStrings as $original) {
+				if (trim(current($original)) != "" && !\array_key_exists(current($original), $this->dictionary)) {
+					$po .= 'msgid "'.current($original).'"'."\n";
+					if (count($original) > 1)
+						$po .= 'msgid_plural "'.end($original).'"'."\n";
 					$po .= "\n";
 				}
 			}

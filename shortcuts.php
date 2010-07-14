@@ -50,5 +50,5 @@ function __($message)
  */
 function _n($single, $plural, $number)
 {
-	return Nette\Environment::getService('Nette\ITranslator')->translate($single, $plural, $number);
+	return Nette\Environment::getService('Nette\ITranslator')->translate($single, array($plural, $number));
 }

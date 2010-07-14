@@ -50,7 +50,7 @@ class Gettext extends \Nette\Object implements IEditable
 	/** @var array */
 	protected $dirs = array();
 	/** @var string */
-	protected $lang = "en";
+	public $lang = "en";
 	/** @var array */
 	private $metadata;
 	/** @var array<string|array> */

@@ -52,3 +52,28 @@ function _n($single, $plural, $number)
 {
 	return Nette\Environment::getService('Nette\ITranslator')->translate($single, array($plural, $number));
 }
+
+/**
+ * Translates the given string with vsprintf.
+ *
+ * @param string $message
+ * @paran array $args for vsprintf 
+ * @return string
+ */
+function _x($message, array $args)
+{
+	return Nette\Environment::getService('Nette\ITranslator')->translate($message, NULL, $args);
+}
+
+/**
+ * Translates the given string with plural and vsprintf.
+ *
+ * @param string $single
+ * @param string $plural 
+ * @param int $muber plural form (positive number)
+ * @return string
+ */
+function _nx($single, $plural, $number, array $args)
+{
+	return Nette\Environment::getService('Nette\ITranslator')->translate($single, array($plural, $number), $args);
+}

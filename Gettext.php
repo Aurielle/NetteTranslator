@@ -219,13 +219,16 @@ class Gettext extends \Nette\Object implements IEditable
 		}
 
 		$args = func_get_args();
-		if (count($args) > 2) {
+		if (count($args) > 1) {
 			array_shift($args);
-			$tmp = $args;
-			if (is_array(array_pop($tmp))) {
-				$args = array_pop($args);
-			}
-			$message = vsprintf($message, $args);
+			if (is_array(current($args)) || current($args) === NULL)
+				array_shift($args);
+				
+			if (count($args) == 1 && is_array(current($args)))
+				$args = current($args);
+			
+			if (count($args) > 0 && $args != NULL);
+				$message = vsprintf($message, $args);
 		}
 		return $message;
 	}

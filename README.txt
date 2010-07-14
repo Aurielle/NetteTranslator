@@ -22,3 +22,10 @@ For enable add NetteTranslator\Panel::register(); to your bootstrap.php.
 Translate String
 ----------------
 Nette\Environment::getService('Nette\ITranslator')->translate('This is translation text');
+or plural version
+Nette\Environment::getService('Nette\ITranslator')
+	->translate('This is translation text', array('This is transtaltion texts', 2));
+or use shortcuts
+__('This is translation text');
+or plural version shortcuts
+_n('This is translation text', 'This is transtaltion texts', 2);

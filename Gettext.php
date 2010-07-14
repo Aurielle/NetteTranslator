@@ -305,10 +305,10 @@ class Gettext extends \Nette\Object implements IEditable
 		$this->buildMOFile($this->dirs[0]."/".$this->lang.".mo");
 		$this->buildPOFile($this->dirs[0]."/".$this->lang.".po");
 
-		/*$storage = Environment::getSession(self::SESSION_NAMESPACE);
+		$storage = Environment::getSession(self::SESSION_NAMESPACE);
 		if (isset($storage->newStrings)) {
 			unset($storage->newStrings);
-		}*/
+		}
 	}
 
 	/**

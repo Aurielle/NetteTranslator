@@ -47,6 +47,8 @@ use Nette\Environment,
 class Gettext extends \Nette\Object implements IEditable
 {
 	const SESSION_NAMESPACE = "NetteTranslator-Gettext";
+	const CACHE_ENABLE = TRUE;
+	const CACHE_DISABLE = FALSE;
 	/** @var array */
 	protected $dirs = array();
 	/** @var string */
@@ -57,6 +59,8 @@ class Gettext extends \Nette\Object implements IEditable
 	protected $dictionary = array();
 	/** @var bool */
 	private $loaded = FALSE;
+	/** @var bool */
+	public static $cache = self::CACHE_DISABLE;
 
 
 	/**
@@ -89,8 +93,25 @@ class Gettext extends \Nette\Object implements IEditable
 	protected function loadDictonary()
 	{
 		if (!$this->loaded) {
-			foreach ($this->dirs as $dir) {
-				$this->parseFile($dir."/".$this->lang.".mo");
+			$cache = Environment::getCache(self::SESSION_NAMESPACE);
+			if (self::$cache && isset($cache['dictionary-'.$this->lang]))
+				$this->dictionary = $cache['dictionary-'.$this->lang];
+			else {
+				$files = array();
+				foreach ($this->dirs as $dir) {
+					if (file_exists($dir."/".$this->lang.".mo")) {
+						$this->parseFile($dir."/".$this->lang.".mo");
+						$file[] = $dir."/".$this->lang.".mo";
+					}
+				}
+
+				if (self::$cache) {
+					$cache->save('dictionary-'.$this->lang, $this->dictionary, array(
+						'expire' => time() * 60 * 60 * 2,
+						'files' => $files,
+						'tags' => array('dictionary-'.$this->lang)
+					));
+				}
 			}
 			$this->loaded = TRUE;
 		}
@@ -103,62 +124,60 @@ class Gettext extends \Nette\Object implements IEditable
 	 */
 	protected function parseFile($file)
 	{
-		if (file_exists($file)) {
-			$f = @fopen($file, 'rb');
-			if (@filesize($file) < 10)
-				\InvalidArgumentException("'$file' is not a gettext file.");
+		$f = @fopen($file, 'rb');
+		if (@filesize($file) < 10)
+			\InvalidArgumentException("'$file' is not a gettext file.");
 
+		$endian = FALSE;
+		$read = function($bytes) use ($f, $endian)
+		{
+			$data = fread($f, 4 * $bytes);
+			return $endian === FALSE ? unpack('V'.$bytes, $data) : unpack('N'.$bytes, $data);
+		};
+
+		$input = $read(1);
+		if (String::lower(substr(dechex($input[1]), -8)) == "950412de")
 			$endian = FALSE;
-			$read = function($bytes) use ($f, $endian)
-			{
-				$data = fread($f, 4 * $bytes);
-				return $endian === FALSE ? unpack('V'.$bytes, $data) : unpack('N'.$bytes, $data);
-			};
+		elseif (String::lower(substr(dechex($input[1]), -8)) == "de120495")
+			$endian = TRUE;
+		else
+			throw new \InvalidArgumentException("'$file' is not a gettext file.");
 
-			$input = $read(1);
-			if (String::lower(substr(dechex($input[1]), -8)) == "950412de")
-				$endian = FALSE;
-			elseif (String::lower(substr(dechex($input[1]), -8)) == "de120495")
-				$endian = TRUE;
-			else
-				throw new \InvalidArgumentException("'$file' is not a gettext file.");
+		$input = $read(1);
 
-			$input = $read(1);
+		$input = $read(1);
+		$total = $input[1];
 
-			$input = $read(1);
-			$total = $input[1];
+		$input = $read(1);
+		$originalOffset = $input[1];
 
-			$input = $read(1);
-			$originalOffset = $input[1];
+		$input = $read(1);
+		$translationOffset = $input[1];
 
-			$input = $read(1);
-			$translationOffset = $input[1];
+		fseek($f, $originalOffset);
+		$orignalTmp = $read(2 * $total);
+		fseek($f, $translationOffset);
+		$translationTmp = $read(2 * $total);
 
-			fseek($f, $originalOffset);
-			$orignalTmp = $read(2 * $total);
-			fseek($f, $translationOffset);
-			$translationTmp = $read(2 * $total);
+		for ($i = 0; $i < $total; ++$i) {
+			if ($orignalTmp[$i * 2 + 1] != 0) {
+				fseek($f, $orignalTmp[$i * 2 + 2]);
+				$original = @fread($f, $orignalTmp[$i * 2 + 1]);
+			} else
+				$original = "";
 
-			for ($i = 0; $i < $total; ++$i) {
-				if ($orignalTmp[$i * 2 + 1] != 0) {
-					fseek($f, $orignalTmp[$i * 2 + 2]);
-					$original = @fread($f, $orignalTmp[$i * 2 + 1]);
-				} else
-					$original = "";
-
-				if ($translationTmp[$i * 2 + 1] != 0) {
-					fseek($f, $translationTmp[$i * 2 + 2]);
-					$translation = fread($f, $translationTmp[$i * 2 + 1]);
-					if ($original === "") {
-						$this->parseMetadata($translation);
-						continue;
-					}
-
-					$original = explode(String::chr(0x00), $original);
-					$translation = explode(String::chr(0x00), $translation);
-					$this->dictionary[is_array($original) ? $original[0] : $original]['original'] = $original;
-					$this->dictionary[is_array($original) ? $original[0] : $original]['translation'] = $translation;
+			if ($translationTmp[$i * 2 + 1] != 0) {
+				fseek($f, $translationTmp[$i * 2 + 2]);
+				$translation = fread($f, $translationTmp[$i * 2 + 1]);
+				if ($original === "") {
+					$this->parseMetadata($translation);
+					continue;
 				}
+
+				$original = explode(String::chr(0x00), $original);
+				$translation = explode(String::chr(0x00), $translation);
+				$this->dictionary[is_array($original) ? $original[0] : $original]['original'] = $original;
+				$this->dictionary[is_array($original) ? $original[0] : $original]['translation'] = $translation;
 			}
 		}
 	}
@@ -308,6 +327,10 @@ class Gettext extends \Nette\Object implements IEditable
 		$storage = Environment::getSession(self::SESSION_NAMESPACE);
 		if (isset($storage->newStrings)) {
 			unset($storage->newStrings);
+		}
+		if (self::$cache) {
+			$cache = Environment::getCache(self::SESSION_NAMESPACE)
+				->clean(array(\Nette\Caching\Cache::TAGS => 'dictionary-'.$this->lang));
 		}
 	}
 

@@ -229,13 +229,18 @@ class Gettext extends \Nette\Object implements IEditable
 			if (!empty($message))
 				$message = (is_array($message) && $plural !== NULL && isset($message[$plural])) ? $message[$plural] : $message;
 		} else {
-			$space = Environment::getSession(self::SESSION_NAMESPACE);
-			if (!isset($space->newStrings))
-				$space->newStrings = array();
-			$space->newStrings[$message] = empty($message_plural) ? array($message) : array($message, $message_plural);
+			if (!Environment::getHttpResponse()->isSent()) {
+				$space = Environment::getSession(self::SESSION_NAMESPACE);
+				if (!isset($space->newStrings))
+					$space->newStrings = array();
+				$space->newStrings[$message] = empty($message_plural) ? array($message) : array($message, $message_plural);
+			}
 			if ($form > 1 && !empty($message_plural))
 				$message = $message_plural;
 		}
+
+		if (is_array($message))
+			$message = current($message);
 
 		$args = func_get_args();
 		if (count($args) > 1) {
@@ -396,17 +401,17 @@ class Gettext extends \Nette\Object implements IEditable
 			."# Created: ".date('Y-m-d H:i:s')."\n".'msgid ""'."\n".'msgstr ""'."\n";
 		$po .= '"'.implode('\n"'."\n".'"', $this->generateMetadata()).'\n"'."\n\n\n";
 		foreach ($this->dictionary as $message => $data) {
-			$po .= 'msgid "'.$message.'"'."\n";
+			$po .= 'msgid "'.str_replace(array('"', "'"), array('\"', "\\'"), $message).'"'."\n";
 			if (is_array($data['original']) && count($data['original']) > 1)
-				$po .= 'msgid_plural "'.end($data['original']).'"'."\n";
+				$po .= 'msgid_plural "'.str_replace(array('"', "'"), array('\"', "\\'"), end($data['original'])).'"'."\n";
 			if (!is_array($data['translation']))
-				$po .= 'msgstr "'.$data['translation'].'"'."\n";
+				$po .= 'msgstr "'.str_replace(array('"', "'"), array('\"', "\\'"), $data['translation']).'"'."\n";
 			elseif (count($data['translation']) < 2)
-				$po .= 'msgstr "'.current($data['translation']).'"'."\n";
+				$po .= 'msgstr "'.str_replace(array('"', "'"), array('\"', "\\'"), current($data['translation'])).'"'."\n";
 			else {
 				$i = 0;
 				foreach ($data['translation'] as $string) {
-					$po .= 'msgstr['.$i.'] "'.$string.'"'."\n";
+					$po .= 'msgstr['.$i.'] "'.str_replace(array('"', "'"), array('\"', "\\'"), $string).'"'."\n";
 					$i++;
 				}
 			}
@@ -417,9 +422,9 @@ class Gettext extends \Nette\Object implements IEditable
 		if (isset($storage->newStrings)) {
 			foreach ($storage->newStrings as $original) {
 				if (trim(current($original)) != "" && !\array_key_exists(current($original), $this->dictionary)) {
-					$po .= 'msgid "'.current($original).'"'."\n";
+					$po .= 'msgid "'.str_replace(array('"', "'"), array('\"', "\\'"), current($original)).'"'."\n";
 					if (count($original) > 1)
-						$po .= 'msgid_plural "'.end($original).'"'."\n";
+						$po .= 'msgid_plural "'.str_replace(array('"', "'"), array('\"', "\\'"), end($original)).'"'."\n";
 					$po .= "\n";
 				}
 			}

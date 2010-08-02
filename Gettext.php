@@ -229,7 +229,7 @@ class Gettext extends \Nette\Object implements IEditable
 			if (!empty($message))
 				$message = (is_array($message) && $plural !== NULL && isset($message[$plural])) ? $message[$plural] : $message;
 		} else {
-			if (!Environment::getHttpResponse()->isSent()) {
+			if (!Environment::getHttpResponse()->isSent() || Environment::getSession()->isStarted()) {
 				$space = Environment::getSession(self::SESSION_NAMESPACE);
 				if (!isset($space->newStrings))
 					$space->newStrings = array();

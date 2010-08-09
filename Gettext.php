@@ -250,9 +250,11 @@ class Gettext extends \Nette\Object implements IEditable
 				
 			if (count($args) == 1 && is_array(current($args)))
 				$args = current($args);
-			
+
+			$message = str_replace(array("%label", "%name", "%value"), array("#label", "#name", "#value"), $message);
 			if (count($args) > 0 && $args != NULL);
 				$message = vsprintf($message, $args);
+			$message = str_replace(array("#label", "#name", "#value"), array("%label", "%name", "%value"), $message);
 		}
 		return $message;
 	}

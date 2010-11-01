@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (c) 2010 Patrik Votoƒçek <patrik@votocek.cz>
+ * Copyright (c) 2010 Patrik VotoËek <patrik@votocek.cz>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -35,10 +35,10 @@ use Nette\Environment,
  * Gettext translator.
  * This solution is partitionaly based on Zend_Translate_Adapter_Gettext (c) Zend Technologies USA Inc. (http://www.zend.com), new BSD license
  *
- * @author     Roman Sklen√°≈ô
+ * @author     Roman Sklen·¯
  * @author	   Miroslav Smetana
- * @author	   Patrik Votoƒçek <patrik@votocek.cz>
- * @copyright  Copyright (c) 2009 Roman Sklen√°≈ô (http://romansklenar.cz)
+ * @author	   Patrik VotoËek <patrik@votocek.cz>
+ * @copyright  Copyright (c) 2009 Roman Sklen·¯ (http://romansklenar.cz)
  * @license    New BSD License
  * @example    http://addons.nettephp.com/gettext-translator
  * @package    NetteTranslator\Gettext
@@ -52,7 +52,7 @@ class Gettext extends \Nette\Object implements IEditable
 	/** @var array */
 	protected $dirs = array();
 	/** @var string */
-	public $lang = "en";
+	protected $lang = "en";
 	/** @var array */
 	private $metadata;
 	/** @var array<string|array> */
@@ -209,7 +209,7 @@ class Gettext extends \Nette\Object implements IEditable
 	public function translate($message, $form = 1)
 	{
 		$this->loadDictonary();
-		
+
 		$message = (string) $message;
 		$message_plural = NULL;
 		if (is_array($form) && $form !== NULL) {
@@ -224,7 +224,7 @@ class Gettext extends \Nette\Object implements IEditable
 			$tmp = preg_replace('/([a-z]+)/', '$$1', "n=$form;".$this->metadata['Plural-Forms']);
 			eval($tmp);
 
-			
+
 			$message = $this->dictionary[$message]['translation'];
 			if (!empty($message))
 				$message = (is_array($message) && $plural !== NULL && isset($message[$plural])) ? $message[$plural] : $message;
@@ -247,7 +247,7 @@ class Gettext extends \Nette\Object implements IEditable
 			array_shift($args);
 			if (is_array(current($args)) || current($args) === NULL)
 				array_shift($args);
-				
+
 			if (count($args) == 1 && is_array(current($args)))
 				$args = current($args);
 
@@ -284,7 +284,7 @@ class Gettext extends \Nette\Object implements IEditable
 		$this->loadDictonary();
 
 		$result = array();
-		
+
 		$storage = Environment::getSession(self::SESSION_NAMESPACE);
 		if (isset($storage->newStrings)) {
 			foreach (array_keys($storage->newStrings) as $original) {
@@ -316,7 +316,7 @@ class Gettext extends \Nette\Object implements IEditable
 		$space = Environment::getSession(self::SESSION_NAMESPACE);
 		if (isset($space->newStrings) && array_key_exists($message, $space->newStrings))
 			$message = $space->newStrings[$message];
-		
+
 		$this->dictionary[is_array($message) ? $message[0] : $message]['original'] = (array) $message;
 		$this->dictionary[is_array($message) ? $message[0] : $message]['translation'] = (array) $string;
 	}
@@ -488,5 +488,29 @@ class Gettext extends \Nette\Object implements IEditable
 	public static function getTranslator($options)
 	{
 		return new static(isset($options['dir']) ? (array) $options['dir'] : NULL, Environment::getVariable('lang', 'en'));
+	}
+
+
+	/**
+	 * Returns current language
+	 */
+	public function getLang()
+	{
+		return $this->lang;
+	}
+
+	/**
+	 * Sets a new language
+	 */
+	public function setLang($lang)
+	{
+		if($this->lang === $lang)
+			return;
+
+		$this->lang = $lang;
+		$this->dictionary = array();
+		$this->loaded = FALSE;
+
+		$this->loadDictonary();
 	}
 }

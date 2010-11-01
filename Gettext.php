@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (c) 2010 Patrik Votoèek <patrik@votocek.cz>
+ * Copyright (c) 2010 Patrik VotoÄek <patrik@votocek.cz>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -35,10 +35,10 @@ use Nette\Environment,
  * Gettext translator.
  * This solution is partitionaly based on Zend_Translate_Adapter_Gettext (c) Zend Technologies USA Inc. (http://www.zend.com), new BSD license
  *
- * @author     Roman Sklenáø
+ * @author     Roman SklenÃ¡Å™
  * @author	   Miroslav Smetana
- * @author	   Patrik Votoèek <patrik@votocek.cz>
- * @copyright  Copyright (c) 2009 Roman Sklenáø (http://romansklenar.cz)
+ * @author	   Patrik VotoÄek <patrik@votocek.cz>
+ * @copyright  Copyright (c) 2009 Roman SklenÃ¡Å™ (http://romansklenar.cz)
  * @license    New BSD License
  * @example    http://addons.nettephp.com/gettext-translator
  * @package    NetteTranslator\Gettext

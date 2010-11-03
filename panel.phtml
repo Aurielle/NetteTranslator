@@ -33,7 +33,7 @@ use Nette\Environment;
  * Template for TranslationPanel
  *
  * @author Jan Smitka <jan@smitka.org>
- * @author Patrik Votoƒçek <patrik@votocek.cz>
+ * @author Patrik VotoËek <patrik@votocek.cz>
  * @var $this NetteTranslator\Panel
  * @var $translator NetteTranslator\IEditableTranslator
  */
@@ -349,7 +349,7 @@ var translationPanel = {
 				} else {
 					if (typeof(stringData) != 'object' || !(stringData instanceof Array))
 						stringData = [stringData];
-					
+
 					label = stringData[0];
 				}
 
@@ -434,7 +434,9 @@ var translationPanel = {
 	},
 
 	commit: function () {
-		var data = {};
+		var data = {
+			'x-nette-translationpanel-lang': '<?php echo Environment::getService('Nette\ITranslator')->lang ?>'
+		};
 		for (var i in this.updatedStrings) {
 			data[this.updatedStrings[i]] = this.strings[this.updatedStrings[i]];
 		}

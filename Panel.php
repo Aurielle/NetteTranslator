@@ -44,17 +44,13 @@ class Panel implements \Nette\IDebugPanel
 	const LAYOUT_HORIZONTAL = 1;
 	const LAYOUT_VERTICAL = 2;
 
-	/** @var Nette\IEditableTranslator */
-	protected $translator;
 	/** @var int TranslationPanel layout */
 	protected $layout = self::LAYOUT_VERTICAL;
 	/** @var int Height of the editor */
 	protected $height = 350;
 
-	public function __construct(IEditable $translator, $layout = NULL, $height = NULL)
+	public function __construct($layout = NULL, $height = NULL)
 	{
-		$this->translator = $translator;
-
 		if ($height !== NULL) {
 			if (!is_numeric($height))
 				throw new \InvalidArgumentException('Panel height has to be a numeric value.');
@@ -96,8 +92,8 @@ class Panel implements \Nette\IDebugPanel
 	 */
 	public function getPanel()
 	{
-		$translator = $this->translator;
-		$strings = $this->translator->getStrings();
+		$translator = Environment::getService('Nette\ITranslator');
+		$strings = $translator->getStrings();
 
 		if (Environment::getSession()->isStarted()) {
 			$session = Environment::getSession(self::SESSION_NAMESPACE);
@@ -135,17 +131,22 @@ class Panel implements \Nette\IDebugPanel
 		$request = Environment::getHttpRequest();
 		if ($request->isPost() && $request->isAjax() && $request->getHeader(self::XHR_HEADER)) {
 			$data = json_decode(file_get_contents('php://input'));
+			$translator = Environment::getService('Nette\ITranslator');
+
 			if ($data) {
 				if ($session) {
 					$stack = isset($session['stack']) ? $session['stack'] : array();
 				}
 
+				$translator->lang = $data->{'x-nette-translationpanel-lang'};
+				unset($data->{'x-nette-translationpanel-lang'});
+
 				foreach ($data as $string => $value) {
-					$this->translator->setTranslation($string, $value);
+					$translator->setTranslation($string, $value);
 					if ($session && isset($stack[$string]))
 						unset($stack[$string]);
 				}
-				$this->translator->save();
+				$translator->save();
 
 				if ($session)
 					$session['stack'] = $stack;
@@ -153,7 +154,7 @@ class Panel implements \Nette\IDebugPanel
 			exit;
 		}
 	}
-	
+
 	/**
 	 * Return an odrdinal number suffix.
 	 * @param string $count
@@ -182,8 +183,6 @@ class Panel implements \Nette\IDebugPanel
 	 */
 	public static function register(IEditable $translator = NULL, $layout = NULL, $height = NULL)
 	{
-		if (empty($translator))
-			$translator = Environment::getService('Nette\ITranslator');
-		\Nette\Debug::addPanel(new static($translator, $layout, $height));
+		\Nette\Debug::addPanel(new static($layout, $height));
 	}
 }

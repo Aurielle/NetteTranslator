@@ -214,7 +214,7 @@ class Gettext extends \Nette\Object implements IEditable
 		$message_plural = NULL;
 		if (is_array($form) && $form !== NULL) {
 			$message_plural = current($form);
-			$form = end($form);
+			$form = (int) end($form);
 		}
 		if (!is_int($form) || $form === NULL) {
 			$form = 1;

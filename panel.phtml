@@ -34,6 +34,7 @@ use Nette\Environment;
  *
  * @author Jan Smitka <jan@smitka.org>
  * @author Patrik Votoček <patrik@votocek.cz>
+ * @author Vaclav Vrbka <gmvasek@php-info.cz>
  * @var $this NetteTranslator\Panel
  * @var $translator NetteTranslator\IEditableTranslator
  */
@@ -59,7 +60,7 @@ use Nette\Environment;
 }
 
 #TranslationPanel-strings {
-	height: <?php echo ($this->height - 30) . 'px'; ?>;
+	height: <?php echo ($this->height - 60) . 'px'; ?>;
 	overflow: auto;
 	border: 1px solid #AAA;
 }
@@ -73,6 +74,13 @@ use Nette\Environment;
 
 #TranslationPanel-filterBox {
 	width: 80%;
+}
+
+#TranslationPanel-fileSelectBox {
+	padding: 3px;
+	border: 1px solid #AAA;
+	margin-bottom: 2px;
+	width: 100%;
 }
 
 #TranslationPanel-filterReset {
@@ -228,12 +236,46 @@ JSON.stringify = JSON.stringify || function (obj) {
 <script type="text/javascript">
 /* <![CDATA[ */
 
+function in_array (needle, haystack, argStrict) {
+   var key = '', strict = !!argStrict;
+
+   if (strict) {
+        for (key in haystack) {
+            if (haystack[key] === needle) {
+                return true;
+            }
+        }
+    } else {
+        for (key in haystack) {
+            if (haystack[key] == needle) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+function clone(obj){
+    if(obj == null || typeof(obj) != 'object')
+        return obj;
+
+    var temp = obj.constructor(); // changed
+
+    for(var key in obj)
+        temp[key] = clone(obj[key]);
+    return temp;
+}
+
+
 var translationPanel = {
 	strings: <?php echo json_encode($strings); ?>,
+	files: <?php echo json_encode($files); ?>,
 	variants: <?php echo json_encode($translator->getVariantsCount()); ?>,
 
 	updatedStrings: [],
 	currentString: false,
+	currentFile: false,
 	filter: '',
 
 	listElements: [],
@@ -247,7 +289,8 @@ var translationPanel = {
 		this.icon = document.getElementById('TranslationPanel-icon');
 		this.iconNormal = document.getElementById('TranslationPanel-icon').src;
 
-		this.drawList();
+		this.currentFile = '<?php echo $activeFile ?>';
+		this.drawList('<?php echo $activeFile ?>');
 
 		for (var i = 0; i < this.variants; i++) {
 			var textarea = document.getElementById('TranslationPanel-stringVariant_' + i);
@@ -260,6 +303,11 @@ var translationPanel = {
 				}
 			};
 		}
+
+		var selectBox = document.getElementById('TranslationPanel-fileSelectBox');
+		selectBox.onchange = function() {
+			translationPanel.changeFile(this.options[this.selectedIndex].value);
+		};
 
 		var button = document.getElementById('TranslationPanel-save');
 		button.disabled = true;
@@ -289,18 +337,32 @@ var translationPanel = {
 		translationPanel.setStatus();
 	},
 
-	drawList: function () {
+	changeFile: function(file) {
+		if(in_array(file, this.files)) {
+			this.currentFile = file;
+			this.drawList(file);
+		}
+	},
+
+	drawList: function (file) {
 		var list = document.getElementById('TranslationPanel-strings');
 		list.innerHTML = '';
 		this.listElements = [];
 
 		var strings = [{}, {}];
 		var untranslated = 0;
-		for (var i in this.strings) {
-			var translated = Boolean(this.strings[i]);
-			if (translated && (typeof(this.strings[i]) == 'object' && this.strings[i] instanceof Array) && this.strings[i].length > 1) {
+
+
+		var currentStrings = clone(this.strings['newStrings']);
+		for(attrname in this.strings[file]) {
+			currentStrings[attrname] = this.strings[file][attrname];
+		}
+
+		for (var i in currentStrings) {
+			var translated = Boolean(currentStrings[i]);
+			if (translated && (typeof(currentStrings[i]) == 'object' && currentStrings[i] instanceof Array) && currentStrings[i].length > 1) {
 				for (var plural = 0; plural < this.variants; plural++) {
-					if (!this.strings[i][plural]) {
+					if (!currentStrings[i][plural]) {
 						translated = false;
 						break;
 					}
@@ -308,9 +370,9 @@ var translationPanel = {
 			}
 
 			if (translated)
-				strings[1][i] = this.strings[i];
+				strings[1][i] = currentStrings[i];
 			else {
-				strings[0][i] = this.strings[i];
+				strings[0][i] = currentStrings[i];
 				untranslated++;
 			}
 		}
@@ -332,13 +394,13 @@ var translationPanel = {
 
 		for (var translated in strings) {
 			for (var i in strings[translated]) {
-				if (!this.matchesFilter(i, this.strings[i]))
+				if (!this.matchesFilter(i, currentStrings[i]))
 					continue;
 
 				var div = document.createElement('div');
 				div.className = 'TranslationPanel-string';
 				var label;
-				var stringData = this.strings[i];
+				var stringData = currentStrings[i];
 
 				if (translated == 0) {
 					div.className += ' untranslated';
@@ -390,7 +452,7 @@ var translationPanel = {
 	edit: function (anchor) {
 		var string = anchor.title;
 
-		this.fillIn(this.strings[string]);
+		this.fillIn(this.strings[this.currentFile][string]);
 		this.currentString = string;
 		document.getElementById('TranslationPanel-stringVariant_0').focus();
 		this.setStatus(string.length <= 50 ? this.escape(string) : this.escape(string).substr(0, 50) + '&hellip;');
@@ -423,7 +485,10 @@ var translationPanel = {
 			else if (stringData.length == 0)
 				stringData = false;
 
-			this.strings[this.currentString] = stringData;
+			this.strings[this.currentFile][this.currentString] = stringData;
+			if(typeof(this.strings['newStrings'][this.currentString]) != 'undefined') {
+				delete this.strings['newStrings'][this.currentString];
+			}
 			this.updatedStrings.push(this.currentString);
 			if (this.listElements[this.currentString].className.search('modified') == -1)
 				this.listElements[this.currentString].className += ' modified';
@@ -435,10 +500,11 @@ var translationPanel = {
 
 	commit: function () {
 		var data = {
-			'x-nette-translationpanel-lang': '<?php echo Environment::getService('Nette\ITranslator')->lang ?>'
+			'X-NetteTranslator-Lang': '<?php echo $translator->lang ?>',
+			'X-NetteTranslator-File': this.currentFile
 		};
 		for (var i in this.updatedStrings) {
-			data[this.updatedStrings[i]] = this.strings[this.updatedStrings[i]];
+			data[this.updatedStrings[i]] = this.strings[this.currentFile][this.updatedStrings[i]];
 		}
 
 		var xmlHttp = window.ActiveXObject ? new ActiveXObject('Microsoft.XMLHTTP') : new XMLHttpRequest();
@@ -448,14 +514,14 @@ var translationPanel = {
 					translationPanel.updatedStrings = [];
 					translationPanel.currentString = false;
 					translationPanel.setStatus('Sucessfuly saved.');
-					translationPanel.drawList();
+					translationPanel.drawList(translationPanel.currentFile);
 				} else {
 					translationPanel.setStatus('Unexpected error.');
 					var win = window.open('', 'Error');
 					win.document.write(xmlHttp.responseText);
 					translationPanel.updatedStrings = [];
 					translationPanel.currentString = false;
-					translationPanel.drawList();
+					translationPanel.drawList(translationPanel.currentFile);
 				}
 			}
 		}
@@ -489,6 +555,13 @@ var translationPanel = {
 
 	<div class="nette-inner">
 		<div id="TranslationPanel-sidebar">
+			<div id="TranslationPanel-fileSelect">
+				<select id="TranslationPanel-fileSelectBox">
+					<?php foreach($files as $identifier): ?>
+					<option value="<?php echo $identifier ?>" <?php if($identifier === $activeFile): ?>selected="selected"<?php endif; ?>><?php echo $identifier ?></option>
+					<?php endforeach; ?>
+				</select>
+			</div>
 			<div id="TranslationPanel-filter">
 				<input type="text" class="text" id="TranslationPanel-filterBox" />
 				<div id="TranslationPanel-filterReset"></div>
@@ -515,5 +588,3 @@ var translationPanel = {
 		</div>
 	</div>
 </div>
-
-

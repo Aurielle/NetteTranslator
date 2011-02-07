@@ -35,7 +35,7 @@ namespace NetteTranslator;
 interface IEditable extends \Nette\ITranslator
 {
 	public function getVariantsCount();
-	public function getStrings();
-	public function setTranslation($message, $string);
-	public function save();
+	public function getStrings($file = NULL);
+	public function setTranslation($message, $string, $file);
+	public function save($file);
 }

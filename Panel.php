@@ -35,11 +35,14 @@ use Nette\Environment;
  *
  * @author Jan Smitka <jan@smitka.org>
  * @author Patrik Votoček <patrik@votocek.cz>
+ * @author Vaclav Vrbka <gmvasek@php-info.cz>
  */
 class Panel implements \Nette\IDebugPanel
 {
 	const XHR_HEADER = "X-Translation-Client";
 	const SESSION_NAMESPACE = "NetteTranslator-Panel";
+	const LANGUAGE_KEY = "X-NetteTranslator-Lang";
+	const FILE_KEY = "X-NetteTranslator-File";
 	/* Layout constants */
 	const LAYOUT_HORIZONTAL = 1;
 	const LAYOUT_VERTICAL = 2;
@@ -47,7 +50,7 @@ class Panel implements \Nette\IDebugPanel
 	/** @var int TranslationPanel layout */
 	protected $layout = self::LAYOUT_VERTICAL;
 	/** @var int Height of the editor */
-	protected $height = 350;
+	protected $height = 410;
 
 	public function __construct($layout = NULL, $height = NULL)
 	{
@@ -93,7 +96,13 @@ class Panel implements \Nette\IDebugPanel
 	public function getPanel()
 	{
 		$translator = Environment::getService('Nette\ITranslator');
+		$files = array_keys($translator->getFiles());
 		$strings = $translator->getStrings();
+
+		$requests = \Nette\Environment::getApplication()->requests;
+		$presenterName = $requests[count($requests) - 1]->presenterName;
+		$module = strtolower(str_replace(':', '.', ltrim(substr($presenterName, 0, -(strlen(strrchr($presenterName, ':')))), ':')));
+		$activeFile = (in_array($module, $files)) ? $module : $files[0];
 
 		if (Environment::getSession()->isStarted()) {
 			$session = Environment::getSession(self::SESSION_NAMESPACE);
@@ -138,15 +147,16 @@ class Panel implements \Nette\IDebugPanel
 					$stack = isset($session['stack']) ? $session['stack'] : array();
 				}
 
-				$translator->lang = $data->{'x-nette-translationpanel-lang'};
-				unset($data->{'x-nette-translationpanel-lang'});
+				$translator->lang = $data->{self::LANGUAGE_KEY};
+				$file = $data->{self::FILE_KEY};
+				unset($data->{self::LANGUAGE_KEY}, $data->{self::FILE_KEY});
 
 				foreach ($data as $string => $value) {
-					$translator->setTranslation($string, $value);
+					$translator->setTranslation($string, $value, $file);
 					if ($session && isset($stack[$string]))
 						unset($stack[$string]);
 				}
-				$translator->save();
+				$translator->save($file);
 
 				if ($session)
 					$session['stack'] = $stack;

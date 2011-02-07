@@ -2,7 +2,7 @@ Nette Translator (c) Patrik Votoček (Vrtak-CZ), 2010 (http://patrik.votocek.cz)
 
 Requirements
 ------------
-Nette Framework 1.x or higher. (PHP 5.3 edition)
+Nette Framework 2.0-dev or higher. (PHP 5.3 edition)
 
 Documentation and Examples
 --------------------------
@@ -11,13 +11,22 @@ Load languages from .mo file(s) and save changes with generates .mo & .po files.
 
 Enable Translator
 -----------------
-Add this lines to your config.ini.
-service.Nette-ITranslator.option.file = %appDir%/lang/en.mo
+Add this line to your config.ini / config.neon.
 service.Nette-ITranslator.factory = "NetteTranslator\Gettext::getTranslator"
+
+Add Files
+---------
+Add files in bootstrap.php or other file where you configurate application.
+Environment::getService('Nette\ITranslator')->addFile('%appDir%/AdminModule/lang', 'admin');
+
+There must be at least one file added, otherwise please don't use NetteTranslator.
 
 Enable Editor (panel)
 ---------------------
-For enable add NetteTranslator\Panel::register(); to your bootstrap.php.
+To enable add NetteTranslator\Panel::register(); to your bootstrap.php or to the
+file where you register your Gettext files (AFTER files registration!).
+According to modules, if a translation file exists with the name of current module,
+if will be automatically selected as default dictionary in Editor.
 
 Translate String
 ----------------

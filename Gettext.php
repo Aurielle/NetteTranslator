@@ -371,7 +371,7 @@ class Gettext extends \Nette\Object implements IEditable
 		$this->loadDictonary();
 
 		$space = Environment::getSession(self::SESSION_NAMESPACE);
-		if (isset($space->newStrings[$this->lnag]) && array_key_exists($message, $space->newStrings[$this->lang]))
+		if (isset($space->newStrings[$this->lang]) && array_key_exists($message, $space->newStrings[$this->lang]))
 			$message = $space->newStrings[$this->lang][$message];
 
 		$this->dictionary[is_array($message) ? $message[0] : $message]['original'] = (array) $message;

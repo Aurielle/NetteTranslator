@@ -325,13 +325,13 @@ var translationPanel = {
 		var onChange = function () {
 			translationPanel.filter = filterBox.value;
 			filterReset.style.visibility = (translationPanel.filter ? 'visible' : 'hidden');
-			translationPanel.drawList();
+			translationPanel.drawList(translationPanel.currentFile);
 		};
 		filterBox.onkeyup = filterBox.onchange = onChange;
 		filterReset.onclick = function () {
 			translationPanel.filter = filterBox.value = '';
 			filterReset.style.visibility = 'hidden';
-			translationPanel.drawList();
+			translationPanel.drawList(translationPanel.currentFile);
 		};
 
 		translationPanel.setStatus();

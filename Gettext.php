@@ -80,6 +80,9 @@ class Gettext extends \Nette\Object implements IEditable
 			$this->lang = Environment::getVariable('lang');
 		if (empty($this->lang))
 			throw new \InvalidStateException("Languages must be defined");
+
+		$storage = Environment::getSession(self::SESSION_NAMESPACE);
+		$storage->newStrings = array();
 	}
 
 
@@ -256,9 +259,9 @@ class Gettext extends \Nette\Object implements IEditable
 		} else {
 			if (!Environment::getHttpResponse()->isSent() || Environment::getSession()->isStarted()) {
 				$space = Environment::getSession(self::SESSION_NAMESPACE);
-				if (!isset($space->newStrings))
-					$space->newStrings = array();
-				$space->newStrings[$message] = empty($message_plural) ? array($message) : array($message, $message_plural);
+				if (!isset($space->newStrings[$this->lang]))
+					$space->newStrings[$this->lang] = array();
+				$space->newStrings[$this->lang][$message] = empty($message_plural) ? array($message) : array($message, $message_plural);
 			}
 			if ($form > 1 && !empty($message_plural))
 				$message = $message_plural;
@@ -313,8 +316,8 @@ class Gettext extends \Nette\Object implements IEditable
 		$result = array();
 
 		$storage = Environment::getSession(self::SESSION_NAMESPACE);
-		if (isset($storage->newStrings)) {
-			foreach (array_keys($storage->newStrings) as $original) {
+		if (isset($storage->newStrings[$this->lang])) {
+			foreach (array_keys($storage->newStrings[$this->lang]) as $original) {
 				if (trim($original) != "") {
 					$newStrings[$original] = FALSE;
 				}
@@ -368,8 +371,8 @@ class Gettext extends \Nette\Object implements IEditable
 		$this->loadDictonary();
 
 		$space = Environment::getSession(self::SESSION_NAMESPACE);
-		if (isset($space->newStrings) && array_key_exists($message, $space->newStrings))
-			$message = $space->newStrings[$message];
+		if (isset($space->newStrings[$this->lnag]) && array_key_exists($message, $space->newStrings[$this->lang]))
+			$message = $space->newStrings[$this->lang][$message];
 
 		$this->dictionary[is_array($message) ? $message[0] : $message]['original'] = (array) $message;
 		$this->dictionary[is_array($message) ? $message[0] : $message]['translation'] = (array) $string;
@@ -394,8 +397,8 @@ class Gettext extends \Nette\Object implements IEditable
 		$this->buildPOFile("$path.po", $file);
 
 		$storage = Environment::getSession(self::SESSION_NAMESPACE);
-		if (isset($storage->newStrings)) {
-			unset($storage->newStrings);
+		if (isset($storage->newStrings[$this->lang])) {
+			unset($storage->newStrings[$this->lang]);
 		}
 		if (self::$cache) {
 			$cache = Environment::getCache(self::SESSION_NAMESPACE)
@@ -486,8 +489,8 @@ class Gettext extends \Nette\Object implements IEditable
 		}
 
 		$storage = Environment::getSession(self::SESSION_NAMESPACE);
-		if (isset($storage->newStrings)) {
-			foreach ($storage->newStrings as $original) {
+		if (isset($storage->newStrings[$this->lang])) {
+			foreach ($storage->newStrings[$this->lang] as $original) {
 				if (trim(current($original)) != "" && !\array_key_exists(current($original), $this->dictionary)) {
 					$po .= 'msgid "'.str_replace(array('"', "'"), array('\"', "\\'"), current($original)).'"'."\n";
 					if (count($original) > 1)
@@ -510,7 +513,7 @@ class Gettext extends \Nette\Object implements IEditable
 		$dictionary = array_filter($this->dictionary, function($data) use($identifier) {
 			return $data['file'] === $identifier;
 		});
-		
+
 		ksort($dictionary);
 
 		$metadata = implode("\n", $this->generateMetadata($identifier));

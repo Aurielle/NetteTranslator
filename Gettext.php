@@ -82,7 +82,8 @@ class Gettext extends \Nette\Object implements IEditable
 			throw new \InvalidStateException("Languages must be defined");
 
 		$storage = Environment::getSession(self::SESSION_NAMESPACE);
-		$storage->newStrings = array();
+		if(!isset($storage->newStrings) || !is_array($storage->newStrings))
+				$storage->newStrings = array();
 	}
 
 

@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (c) 2010 Patrik Votoƒçek <patrik@votocek.cz>
+ * Copyright (c) 2010 Patrik VotoËek <patrik@votocek.cz>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -26,42 +26,59 @@
  */
 namespace NetteTranslator;
 
-require_once __DIR__ . "/shortcuts.php";
+require_once __DIR__ . '/shortcuts.php';
 
-use Nette\Environment,
-	Nette\String;
+use Nette,
+	Nette\Utils\Strings;
 
 /**
  * Gettext translator.
  * This solution is partitionaly based on Zend_Translate_Adapter_Gettext (c) Zend Technologies USA Inc. (http://www.zend.com), new BSD license
  *
- * @author     Roman Sklen√°≈ô
+ * @author     Roman Sklen·¯
  * @author	   Miroslav Smetana
- * @author	   Patrik Votoƒçek <patrik@votocek.cz>
+ * @author	   Patrik VotoËek <patrik@votocek.cz>
  * @author	   Vaclav Vrbka <gmvasek@php-info.cz>
- * @copyright  Copyright (c) 2009 Roman Sklen√°≈ô (http://romansklenar.cz)
+ * @copyright  Copyright (c) 2009 Roman Sklen·¯ (http://romansklenar.cz)
  * @license    New BSD License
  * @example    http://addons.nettephp.com/gettext-translator
  * @package    NetteTranslator\Gettext
  * @version    0.5
+ *
+ * @todo refactor (according to Nella Project by Vrtak-CZ)
  */
-class Gettext extends \Nette\Object implements IEditable
+class Gettext extends Nette\Object implements IEditable
 {
-	const SESSION_NAMESPACE = "NetteTranslator-Gettext";
+	const SESSION_NAMESPACE = 'NetteTranslator-Gettext';
 	const CACHE_ENABLE = TRUE;
 	const CACHE_DISABLE = FALSE;
+
 	/** @var array */
 	protected $files = array();
+
 	/** @var string */
 	protected $lang = "en";
+
 	/** @var array */
 	private $metadata;
+
 	/** @var array<string|array> */
 	protected $dictionary = array();
+
 	/** @var bool */
 	private $loaded = FALSE;
+
 	/** @var bool */
-	public static $cache = self::CACHE_DISABLE;
+	public static $cacheMode = self::CACHE_DISABLE;
+
+	/** @var Nette\DI\IContainer */
+	protected $container;
+
+	/** @var Nette\Http\Session */
+	protected $session;
+
+	/** @var Nette\Caching\Cache */
+	protected $cache;
 
 
 	/**
@@ -70,18 +87,24 @@ class Gettext extends \Nette\Object implements IEditable
 	 * @param array $files
 	 * @param string $lang
 	 */
-	public function __construct(array $files = NULL, $lang = NULL)
+	public function __construct(Nette\DI\IContainer $container, array $files = NULL, $lang = NULL)
 	{
-		if (count($files) > 0)
-			$this->files = $files;
+		$this->container = $container;
+		$this->session = $storage = $container->session->getSection(static::SESSION_NAMESPACE);
+		$this->cache = new Nette\Caching\Cache($container->cacheStorage, static::SESSION_NAMESPACE);
 
+		if (count($files) > 0) {
+			foreach($files as $identifier => $dir) {
+				$this->addFile($dir, $identifier);
+			}
+		}
+
+		if(empty($lang))
+			$lang = $container->params['lang'];
 		$this->lang = $lang;
-		if (empty($lang))
-			$this->lang = Environment::getVariable('lang');
 		if (empty($this->lang))
-			throw new \InvalidStateException("Languages must be defined");
+			throw new Nette\InvalidStateException('Language must be defined.');
 
-		$storage = Environment::getSession(self::SESSION_NAMESPACE);
 		if(!isset($storage->newStrings) || !is_array($storage->newStrings))
 				$storage->newStrings = array();
 	}
@@ -96,13 +119,12 @@ class Gettext extends \Nette\Object implements IEditable
 	public function addFile($dir, $identifier)
 	{
 		if(strpos($dir, '%') !== FALSE)
-			$dir = Environment::expand($dir);
+			$dir = $this->container->expand($dir);
 
 		if(isset($this->files[$identifier]))
 			throw new \InvalidArgumentException("Language file identified '$identifier' is already registered.");
 
 
-		$dir = realpath($dir);
 		if(is_dir($dir))
 			$this->files[$identifier] = $dir;
 		else
@@ -117,10 +139,10 @@ class Gettext extends \Nette\Object implements IEditable
 	{
 		if (!$this->loaded) {
 			if(empty($this->files))
-				throw new \InvalidStateException("Language file(s) must be defined.");
+				throw new Nette\InvalidStateException("Language file(s) must be defined.");
 
-			$cache = Environment::getCache(self::SESSION_NAMESPACE);
-			if (self::$cache && isset($cache['dictionary-'.$this->lang]))
+			$cache = $this->cache;
+			if (static::$cacheMode && isset($cache['dictionary-'.$this->lang]))
 				$this->dictionary = $cache['dictionary-'.$this->lang];
 			else {
 				$files = array();
@@ -132,7 +154,7 @@ class Gettext extends \Nette\Object implements IEditable
 					}
 				}
 
-				if (self::$cache) {
+				if (static::$cacheMode) {
 					$cache->save('dictionary-'.$this->lang, $this->dictionary, array(
 						'expire' => time() * 60 * 60 * 2,
 						'files' => $files,
@@ -163,9 +185,9 @@ class Gettext extends \Nette\Object implements IEditable
 		};
 
 		$input = $read(1);
-		if (String::lower(substr(dechex($input[1]), -8)) == "950412de")
+		if (Strings::lower(substr(dechex($input[1]), -8)) == "950412de")
 			$endian = FALSE;
-		elseif (String::lower(substr(dechex($input[1]), -8)) == "de120495")
+		elseif (Strings::lower(substr(dechex($input[1]), -8)) == "de120495")
 			$endian = TRUE;
 		else
 			throw new \InvalidArgumentException("'$file' is not a gettext file.");
@@ -201,8 +223,8 @@ class Gettext extends \Nette\Object implements IEditable
 					continue;
 				}
 
-				$original = explode(String::chr(0x00), $original);
-				$translation = explode(String::chr(0x00), $translation);
+				$original = explode(Strings::chr(0x00), $original);
+				$translation = explode(Strings::chr(0x00), $translation);
 				$this->dictionary[is_array($original) ? $original[0] : $original]['original'] = $original;
 				$this->dictionary[is_array($original) ? $original[0] : $original]['translation'] = $translation;
 				$this->dictionary[is_array($original) ? $original[0] : $original]['file'] = $identifier;
@@ -258,8 +280,8 @@ class Gettext extends \Nette\Object implements IEditable
 			if (!empty($message))
 				$message = (is_array($message) && $plural !== NULL && isset($message[$plural])) ? $message[$plural] : $message;
 		} else {
-			if (!Environment::getHttpResponse()->isSent() || Environment::getSession()->isStarted()) {
-				$space = Environment::getSession(self::SESSION_NAMESPACE);
+			if (!$this->container->httpResponse->isSent() || $this->container->session->isStarted()) {
+				$space = $this->session;
 				if (!isset($space->newStrings[$this->lang]))
 					$space->newStrings[$this->lang] = array();
 				$space->newStrings[$this->lang][$message] = empty($message_plural) ? array($message) : array($message, $message_plural);
@@ -316,7 +338,7 @@ class Gettext extends \Nette\Object implements IEditable
 		$newStrings = array();
 		$result = array();
 
-		$storage = Environment::getSession(self::SESSION_NAMESPACE);
+		$storage = $this->session;
 		if (isset($storage->newStrings[$this->lang])) {
 			foreach (array_keys($storage->newStrings[$this->lang]) as $original) {
 				if (trim($original) != "") {
@@ -371,7 +393,7 @@ class Gettext extends \Nette\Object implements IEditable
 	{
 		$this->loadDictonary();
 
-		$space = Environment::getSession(self::SESSION_NAMESPACE);
+		$space = $this->session;
 		if (isset($space->newStrings[$this->lang]) && array_key_exists($message, $space->newStrings[$this->lang]))
 			$message = $space->newStrings[$this->lang][$message];
 
@@ -386,7 +408,7 @@ class Gettext extends \Nette\Object implements IEditable
 	public function save($file)
 	{
 		if(!$this->loaded)
-			throw new \InvalidStateException("Nothing to save, translations are not loaded.");
+			throw new Nette\InvalidStateException("Nothing to save, translations are not loaded.");
 
 		if(!isset($this->files[$file]))
 			throw new \InvalidArgumentException("Gettext file identified as '$file' does not exist.");
@@ -397,12 +419,12 @@ class Gettext extends \Nette\Object implements IEditable
 		$this->buildMOFile("$path.mo", $file);
 		$this->buildPOFile("$path.po", $file);
 
-		$storage = Environment::getSession(self::SESSION_NAMESPACE);
+		$storage = $this->session;
 		if (isset($storage->newStrings[$this->lang])) {
 			unset($storage->newStrings[$this->lang]);
 		}
-		if (self::$cache) {
-			$cache = Environment::getCache(self::SESSION_NAMESPACE)
+		if (static::$cacheMode) {
+			$cache = $this->cache
 				->clean(array(\Nette\Caching\Cache::TAGS => 'dictionary-'.$this->lang));
 		}
 	}
@@ -489,7 +511,7 @@ class Gettext extends \Nette\Object implements IEditable
 			$po .= "\n";
 		}
 
-		$storage = Environment::getSession(self::SESSION_NAMESPACE);
+		$storage = $this->session;
 		if (isset($storage->newStrings[$this->lang])) {
 			foreach ($storage->newStrings[$this->lang] as $original) {
 				if (trim(current($original)) != "" && !\array_key_exists(current($original), $this->dictionary)) {
@@ -519,22 +541,22 @@ class Gettext extends \Nette\Object implements IEditable
 
 		$metadata = implode("\n", $this->generateMetadata($identifier));
 		$items = count($dictionary) + 1;
-		$ids = String::chr(0x00);
-		$strings = $metadata.String::chr(0x00);
+		$ids = Strings::chr(0x00);
+		$strings = $metadata.Strings::chr(0x00);
 		$idsOffsets = array(0, 28 + $items * 16);
 		$stringsOffsets = array(array(0, strlen($metadata)));
 
 		foreach ($dictionary as $key => $value) {
 			$id = $key;
 			if (is_array($value['original']) && count($value['original']) > 1)
-				$id .= String::chr(0x00).end($value['original']);
+				$id .= Strings::chr(0x00).end($value['original']);
 
-			$string = implode(String::chr(0x00), $value['translation']);
+			$string = implode(Strings::chr(0x00), $value['translation']);
 			$idsOffsets[] = strlen($id);
 			$idsOffsets[] = strlen($ids) + 28 + $items * 16;
 			$stringsOffsets[] = array(strlen($strings), strlen($string));
-			$ids .= $id.String::chr(0x00);
-			$strings .= $string.String::chr(0x00);
+			$ids .= $id.Strings::chr(0x00);
+			$strings .= $string.Strings::chr(0x00);
 		}
 
 		$valuesOffsets = array();
@@ -555,12 +577,13 @@ class Gettext extends \Nette\Object implements IEditable
 	/**
 	 * Get translator
 	 *
-	 * @param array $options
+	 * @param Nette\DI\IContainer $container
+	 * @param array|Nette\ArrayHash $options
 	 * @return NetteTranslator\Gettext
 	 */
-	public static function getTranslator($options)
+	public static function getTranslator(Nette\DI\IContainer $container, $options = NULL)
 	{
-		return new static(isset($options['dir']) ? (array) $options['dir'] : NULL, Environment::getVariable('lang', 'en'));
+		return new static($container, isset($options['files']) ? (array) $options['files'] : NULL);
 	}
 
 

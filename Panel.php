@@ -27,33 +27,45 @@
 
 namespace NetteTranslator;
 
-use Nette\Environment;
+use Nette;
+
+
 
 /**
  * Panel for Nette DebugBar, which enables you to translate strings
  * directly from your browser.
  *
  * @author Jan Smitka <jan@smitka.org>
- * @author Patrik VotoÄek <patrik@votocek.cz>
+ * @author Patrik Votoèek <patrik@votocek.cz>
  * @author Vaclav Vrbka <gmvasek@php-info.cz>
  */
-class Panel implements \Nette\IDebugPanel
+class Panel extends Nette\Object implements Nette\Diagnostics\IBarPanel
 {
-	const XHR_HEADER = "X-Translation-Client";
-	const SESSION_NAMESPACE = "NetteTranslator-Panel";
-	const LANGUAGE_KEY = "X-NetteTranslator-Lang";
-	const FILE_KEY = "X-NetteTranslator-File";
+	const XHR_HEADER = 'X-Translation-Client';
+	const SESSION_NAMESPACE = 'NetteTranslator-Panel';
+	const LANGUAGE_KEY = 'X-NetteTranslator-Lang';
+	const FILE_KEY = 'X-NetteTranslator-File';
 	/* Layout constants */
 	const LAYOUT_HORIZONTAL = 1;
 	const LAYOUT_VERTICAL = 2;
 
 	/** @var int TranslationPanel layout */
 	protected $layout = self::LAYOUT_VERTICAL;
+
 	/** @var int Height of the editor */
 	protected $height = 410;
 
-	public function __construct($layout = NULL, $height = NULL)
+	/** @var Nette\DI\IContainer */
+	protected $container;
+
+	/** @var IEditable */
+	protected $translator;
+
+	public function __construct(Nette\DI\IContainer $container, IEditable $translator, $layout = NULL, $height = NULL)
 	{
+		$this->container = $container;
+		$this->translator = $translator;
+
 		if ($height !== NULL) {
 			if (!is_numeric($height))
 				throw new \InvalidArgumentException('Panel height has to be a numeric value.');
@@ -95,17 +107,18 @@ class Panel implements \Nette\IDebugPanel
 	 */
 	public function getPanel()
 	{
-		$translator = Environment::getService('Nette\ITranslator');
+		$translator = $this->translator;
 		$files = array_keys($translator->getFiles());
 		$strings = $translator->getStrings();
 
-		$requests = \Nette\Environment::getApplication()->requests;
-		$presenterName = $requests[count($requests) - 1]->presenterName;
-		$module = strtolower(str_replace(':', '.', ltrim(substr($presenterName, 0, -(strlen(strrchr($presenterName, ':')))), ':')));
+		$requests = $this->container->application->requests;
+		$count = count($requests);
+		$presenterName = ($count > 0) ? $requests[count($requests) - 1]->presenterName : NULL;
+		$module = (!$presenterName) ? : strtolower(str_replace(':', '.', ltrim(substr($presenterName, 0, -(strlen(strrchr($presenterName, ':')))), ':')));
 		$activeFile = (in_array($module, $files)) ? $module : $files[0];
 
-		if (Environment::getSession()->isStarted()) {
-			$session = Environment::getSession(self::SESSION_NAMESPACE);
+		if ($this->container->session->isStarted()) {
+			$session = $this->container->session->getSection(static::SESSION_NAMESPACE);
 			$untranslatedStack = isset($session['stack']) ? $session['stack'] : array();
 			foreach ($strings as $string => $data) {
 				if (!$data) {
@@ -132,15 +145,15 @@ class Panel implements \Nette\IDebugPanel
 	{
 		// Try starting the session
 		try {
-			$session = Environment::getSession(self::SESSION_NAMESPACE);
-		} catch (\InvalidStateException $e) {
+			$session = $this->container->session->getSection(self::SESSION_NAMESPACE);
+		} catch (Nette\InvalidStateException $e) {
 			$session = FALSE;
 		}
 
-		$request = Environment::getHttpRequest();
+		$request = $this->container->httpRequest;
 		if ($request->isPost() && $request->isAjax() && $request->getHeader(self::XHR_HEADER)) {
 			$data = json_decode(file_get_contents('php://input'));
-			$translator = Environment::getService('Nette\ITranslator');
+			$translator = $this->translator;
 
 			if ($data) {
 				if ($session) {
@@ -191,8 +204,8 @@ class Panel implements \Nette\IDebugPanel
 	 * @param int $layout
 	 * @param int $height
 	 */
-	public static function register(IEditable $translator = NULL, $layout = NULL, $height = NULL)
+	public static function register(Nette\DI\IContainer $container, IEditable $translator, $layout = NULL, $height = NULL)
 	{
-		\Nette\Debug::addPanel(new static($layout, $height));
+		Nette\Diagnostics\Debugger::$bar->addPanel(new static($container, $translator, $layout, $height));
 	}
 }

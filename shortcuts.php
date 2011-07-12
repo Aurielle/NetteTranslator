@@ -1,6 +1,6 @@
 <?php
 /*
- * Copyright (c) 2010 Patrik VotoÄek <patrik@votocek.cz>
+ * Copyright (c) 2010 Patrik Votoèek <patrik@votocek.cz>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -37,7 +37,7 @@
  */
 function __($message)
 {
-	return Nette\Environment::getService('Nette\ITranslator')->translate($message);
+	return Nette\Environment::getService('translator')->translate($message);
 }
 
 /**
@@ -50,7 +50,7 @@ function __($message)
  */
 function _n($single, $plural, $number)
 {
-	return Nette\Environment::getService('Nette\ITranslator')->translate($single, array($plural, $number));
+	return Nette\Environment::getService('translator')->translate($single, array($plural, $number));
 }
 
 /**
@@ -62,7 +62,7 @@ function _n($single, $plural, $number)
  */
 function _x($message, array $args)
 {
-	return Nette\Environment::getService('Nette\ITranslator')->translate($message, NULL, $args);
+	return Nette\Environment::getService('translator')->translate($message, NULL, $args);
 }
 
 /**
@@ -75,5 +75,5 @@ function _x($message, array $args)
  */
 function _nx($single, $plural, $number, array $args)
 {
-	return Nette\Environment::getService('Nette\ITranslator')->translate($single, array($plural, $number), $args);
+	return Nette\Environment::getService('translator')->translate($single, array($plural, $number), $args);
 }

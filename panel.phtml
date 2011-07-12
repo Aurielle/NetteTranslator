@@ -27,13 +27,11 @@
 
 namespace NetteTranslator;
 
-use Nette\Environment;
-
 /**
  * Template for TranslationPanel
  *
  * @author Jan Smitka <jan@smitka.org>
- * @author Patrik Votoƒçek <patrik@votocek.cz>
+ * @author Patrik VotoËek <patrik@votocek.cz>
  * @author Vaclav Vrbka <gmvasek@php-info.cz>
  * @var $this NetteTranslator\Panel
  * @var $translator NetteTranslator\IEditableTranslator
@@ -525,8 +523,8 @@ var translationPanel = {
 				}
 			}
 		}
-		xmlHttp.open("POST", <?php echo json_encode(Environment::getApplication()->getPresenter()->link('this')); ?>, true);
-		xmlHttp.setRequestHeader('<?php echo self::XHR_HEADER ?>', 'devel');
+		xmlHttp.open("POST", <?php echo json_encode($this->container->application->getPresenter()->link('this')); ?>, true);
+		xmlHttp.setRequestHeader('<?php echo static::XHR_HEADER ?>', 'devel');
 		xmlHttp.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 		xmlHttp.send(JSON.stringify(data));
 	},
@@ -544,7 +542,7 @@ var translationPanel = {
 			.replace('"', '&quot;')
 			.replace('<', '&lt;')
 			.replace('>', '&gt;');
-	}
+	},
 };
 
 /* ]]> */
